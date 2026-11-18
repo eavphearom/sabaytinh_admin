@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import toast from "react-hot-toast";
+import Button from "../components/ui/Button";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import Modal from "../components/ui/Modal";
-import OrderDetail from "../features/orders/components/OrderDetail";
+import OrderSummary from "../features/orders/components/OrderSummary";
 import OrderList from "../features/orders/components/OrderList";
 import OrderStatusForm from "../features/orders/components/OrderStatusForm";
 import useOrders from "../features/orders/hooks/useOrders";
@@ -12,6 +14,8 @@ export default function OrderPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
 
   const handleView = (order) => {
     setSelectedOrder(order);
@@ -28,23 +32,48 @@ export default function OrderPage() {
     setIsCancelOpen(true);
   };
 
-  const handleSubmitStatus = (formData) => {
-    if (!selectedOrder) return;
-    data.updateOrder(selectedOrder.id, formData);
-    setIsStatusOpen(false);
-    setSelectedOrder(null);
+  // Await the server before closing; failures keep the entered values available.
+  const handleSubmitStatus = async (formData) => {
+    if (!selectedOrder || pending.current) return;
+    pending.current = true;
+    setSaving(true);
+    try {
+      const response = await data.updateOrder(selectedOrder.id, formData);
+      setIsStatusOpen(false);
+      setSelectedOrder(null);
+      toast.success(response?.message || "Order status updated.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to update order.");
+    } finally {
+      pending.current = false;
+      setSaving(false);
+    }
   };
 
-  const handleConfirmCancel = () => {
-    if (!selectedOrder) return;
-    data.cancelOrder(selectedOrder.id);
-    setIsCancelOpen(false);
-    setSelectedOrder(null);
+  // Prevent duplicate cancellation and do not invent a refunded payment state.
+  const handleConfirmCancel = async () => {
+    if (!selectedOrder || pending.current) return;
+    pending.current = true;
+    setSaving(true);
+    try {
+      const response = await data.cancelOrder(selectedOrder.id);
+      setIsCancelOpen(false);
+      setSelectedOrder(null);
+      toast.success(response?.message || "Order cancelled.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to cancel order.");
+    } finally {
+      pending.current = false;
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-5">
       <Header title="Orders" subtitle="Manage customer orders and fulfillment" />
+      {data.error && <div role="alert" className="flex items-center gap-3 text-sm text-red-500">
+        <p>{data.error}</p><Button variant="secondary" size="sm" onClick={data.refresh}>Retry</Button>
+      </div>}
 
       <OrderList
         {...data}
@@ -57,25 +86,19 @@ export default function OrderPage() {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         title="Order Details"
-        size="full"
+        size="xl"
       >
-        <OrderDetail
-          key={`${selectedOrder?.id}-${selectedOrder?.status}`}
-          order={selectedOrder}
-          onUpdateStatus={(formData) => {
-            handleSubmitStatus(formData);
-            setIsDetailOpen(false);
-          }}
-          onClose={() => setIsDetailOpen(false)}
-        />
+        {isDetailOpen && <OrderSummary orderId={selectedOrder?.id} />}
       </Modal>
 
       <Modal
         isOpen={isStatusOpen}
-        onClose={() => setIsStatusOpen(false)}
+        onClose={() => { if (!pending.current) setIsStatusOpen(false); }}
         title="Update Order Status"
       >
         <OrderStatusForm
+          statusOptions={data.changeStatusOptions}
+          loading={data.filtersLoading}
           order={selectedOrder}
           onSubmit={handleSubmitStatus}
           onCancel={() => setIsStatusOpen(false)}
@@ -84,7 +107,8 @@ export default function OrderPage() {
 
       <ConfirmModal
         isOpen={isCancelOpen}
-        onClose={() => setIsCancelOpen(false)}
+        onClose={() => { if (!pending.current) setIsCancelOpen(false); }}
+        loading={saving}
         onConfirm={handleConfirmCancel}
         title="Cancel Order"
         message={`Are you sure you want to cancel "${selectedOrder?.orderNo}"? This keeps the order history record.`}

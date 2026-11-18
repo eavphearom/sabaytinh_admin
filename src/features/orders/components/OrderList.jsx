@@ -1,7 +1,9 @@
+import Button from "../../../components/ui/Button";
 import { Eye, RefreshCw, Search, XCircle } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
 import TablePagination from "../../../components/ui/TablePagination";
+import Table from "../../../components/ui/Table";
 
 export default function OrderList({
   orders,
@@ -10,6 +12,10 @@ export default function OrderList({
   statusFilter,
   onStatusFilter,
   statusOptions,
+  paymentFilter,
+  onPaymentFilter,
+  paymentOptions,
+  loading = false,
   page,
   totalPages,
   totalItems,
@@ -22,64 +28,95 @@ export default function OrderList({
   onCancel,
 }) {
   const firstItem = totalItems === 0 ? 0 : startIndex + 1;
-  const lastItem = Math.min(startIndex + perPage, totalItems);
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const lastItem = Math.min(startIndex + orders.length, totalItems);
+  // Limit page buttons to keep the toolbar usable on small screens.
+  const firstPage = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const pages = Array.from({ length: Math.min(5, totalPages) }, (_, index) => firstPage + index);
 
-  return (
-    <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
-      <div className="border-b border-[#E5EAF1] p-4">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A98AA]" />
-            <Input placeholder="Search order..." value={search} onChange={(e) => onSearch(e.target.value)} className="h-9 pl-9" />
-          </div>
-          <div className="w-full sm:w-44">
-            <Select value={statusFilter} onChange={(e) => onStatusFilter(e.target.value)} options={statusOptions} />
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px]">
-          <thead>
-            <tr className="border-b border-[#E5EAF1] bg-[#F8FAFD] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-              <th className="px-4 py-3">Order Code</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Order Date</th>
-              <th className="px-4 py-3">Items Count</th>
-              <th className="px-4 py-3">Total</th>
-              <th className="px-4 py-3">Payment Method</th>
-              <th className="px-4 py-3">Payment Status</th>
-              <th className="px-4 py-3">Order Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id} className="border-b border-[#EEF2F7] text-sm transition last:border-0 hover:bg-[#F8FAFD]">
-                <td className="px-4 py-3 font-semibold text-[#03152B]">#{order.orderNo}</td>
-                <td className="px-4 py-3 text-[#64748B]">{order.customer}</td>
-                <td className="px-4 py-3 text-[#64748B]">{order.date}</td>
-                <td className="px-4 py-3 text-[#03152B]">{order.items}</td>
-                <td className="px-4 py-3 font-semibold text-[#03152B]">${order.total}</td>
-                <td className="px-4 py-3 text-[#64748B]">{order.paymentMethod}</td>
-                <td className="px-4 py-3"><PaymentBadge status={order.paymentStatus} /></td>
-                <td className="px-4 py-3"><OrderBadge status={order.status} /></td>
-                <td className="px-4 py-3">
-                  <Actions
+  // Custom cells preserve feature UI; Table owns rows, keys and empty states.
+  const columns = [
+    {
+      key: "order_code", label: "Order Code",
+      cellClassName: "font-semibold text-[#03152B]",
+      render: (_, order) => (<>#{order.orderNo}</>),
+    },
+    {
+      key: "customer", label: "Customer",
+      cellClassName: "text-[#64748B]",
+      render: (_, order) => (<>{order.customer}</>),
+    },
+    {
+      key: "order_date", label: "Order Date",
+      cellClassName: "text-[#64748B]",
+      render: (_, order) => (<>{order.date}</>),
+    },
+    {
+      key: "items_count", label: "Items Count",
+      cellClassName: "text-[#03152B]",
+      render: (_, order) => (<>{order.items}</>),
+    },
+    {
+      key: "total", label: "Total",
+      cellClassName: "font-semibold text-[#03152B]",
+      render: (_, order) => (<>{order.currency} {Number(order.total).toFixed(2)}</>),
+    },
+    {
+      key: "payment_method", label: "Payment Method",
+      cellClassName: "text-[#64748B]",
+      render: (_, order) => (<>{order.paymentMethod}</>),
+    },
+    {
+      key: "payment_status", label: "Payment Status",
+      render: (_, order) => (<><PaymentBadge status={order.paymentStatus} /></>),
+    },
+    {
+      key: "order_status", label: "Order Status",
+      render: (_, order) => (<><OrderBadge status={order.status} /></>),
+    },
+    {
+      key: "actions", label: "Actions",
+      align: "right",
+      render: (_, order) => (<><Actions
                     item={order}
                     label={order.orderNo}
                     onView={onView}
                     onUpdateStatus={onUpdateStatus}
                     onCancel={onCancel}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  /></>),
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
+      <div className="border-b border-[#E5EAF1] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="relative w-full sm:w-72">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A98AA]" />
+            <Input placeholder="Search order..." value={search} onChange={(e) => onSearch(e.target.value)} className="h-9 pl-9" />
+          </div>
+          <div className="w-full sm:w-44">
+            <Select value={statusFilter} onChange={(e) => onStatusFilter(e.target.value)} options={statusOptions} placeholder="" />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={paymentFilter} onChange={(e) => onPaymentFilter(e.target.value)} options={paymentOptions} placeholder="" />
+          </div>
+        </div>
       </div>
-      <Footer firstItem={firstItem} lastItem={lastItem} totalItems={totalItems} label="orders" page={page} pages={pages} totalPages={totalPages} perPage={perPage} onPageChange={onPageChange} handlePerPageChange={handlePerPageChange} />
+
+      {/* Search and pagination stay in the feature; Table only renders the current page. */}
+      <Table
+        columns={columns}
+        data={orders}
+        rowKey="id"
+        label="Orders"
+        loading={loading}
+        loadingMessage="Loading orders..."
+        emptyMessage="No orders found."
+        minWidth={860}
+        className="!rounded-none !border-0"
+      />
+      <TablePagination firstItem={firstItem} lastItem={lastItem} totalItems={totalItems} label="orders" page={page} pages={pages} totalPages={totalPages} perPage={perPage} onPageChange={onPageChange} handlePerPageChange={handlePerPageChange} />
+
     </div>
   );
 }
@@ -116,17 +153,13 @@ function Actions({ item, label, onView, onUpdateStatus, onCancel }) {
 
   return (
     <div className="flex justify-end gap-1">
-      <button type="button" onClick={() => onView(item)} className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]" aria-label={`View details for ${label}`}><Eye size={15} /></button>
+      <Button type="button" onClick={() => onView(item)} variant="ghostBrand" size="iconSm" aria-label={`View details for ${label}`}><Eye size={15} /></Button>
       {canUpdateStatus && (
-        <button type="button" onClick={() => onUpdateStatus(item)} className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]" aria-label={`Update status for ${label}`}><RefreshCw size={15} /></button>
+        <Button type="button" onClick={() => onUpdateStatus(item)} variant="ghostBrand" size="iconSm" aria-label={`Update status for ${label}`}><RefreshCw size={15} /></Button>
       )}
       {canCancel && (
-        <button type="button" onClick={() => onCancel(item)} className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600" aria-label={`Cancel ${label}`}><XCircle size={15} /></button>
+        <Button type="button" onClick={() => onCancel(item)} variant="ghostDanger" size="iconSm" aria-label={`Cancel ${label}`}><XCircle size={15} /></Button>
       )}
     </div>
   );
-}
-
-function Footer(props) {
-  return <TablePagination {...props} />;
 }

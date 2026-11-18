@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Modal({
   isOpen,
@@ -7,7 +8,20 @@ export default function Modal({
   children,
   size = "md",
 }) {
-  if (!isOpen) return null;
+  const [present, setPresent] = useState(isOpen);
+
+  if (isOpen && !present) setPresent(true);
+
+  useEffect(() => {
+    if (isOpen || !present) return;
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : 180;
+    const timer = window.setTimeout(() => setPresent(false), duration);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, present]);
+
+  if (!isOpen && !present) return null;
   const sizes = {
     sm: "max-w-sm",
     md: "max-w-md",
@@ -16,9 +30,20 @@ export default function Modal({
     full: "max-w-7xl",
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#03152B]/50 p-4">
+    <div
+      inert={!isOpen ? true : undefined}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-[#03152B]/50 p-4 motion-reduce:animate-none ${
+        isOpen
+          ? "animate-[modalOverlayIn_250ms_ease-out_both]"
+          : "animate-[modalOverlayOut_180ms_ease-in_both]"
+      }`}
+    >
       <div
-        className={`flex max-h-[90vh] w-full ${sizes[size]} flex-col overflow-hidden rounded-lg border border-[#D7DFEA] bg-white shadow-xl`}
+        className={`flex max-h-[90vh] w-full ${sizes[size]} flex-col overflow-hidden rounded-lg border border-[#D7DFEA] bg-white shadow-xl motion-reduce:animate-none ${
+          isOpen
+            ? "animate-[modalDropIn_250ms_cubic-bezier(0.16,1,0.3,1)_both]"
+            : "animate-[modalDropOut_180ms_ease-in_both]"
+        }`}
       >
         {/* Modal header */}
         <div className="flex items-center justify-between border-b border-[#E5EAF1] p-4">

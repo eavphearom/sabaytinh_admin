@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
 import Button from "../components/ui/Button";
 import ConfirmModal from "../components/ui/ConfirmModal";
@@ -6,6 +7,7 @@ import Modal from "../components/ui/Modal";
 import BrandForm from "../features/brands/components/BrandForm";
 import BrandList from "../features/brands/components/BrandList";
 import useBrands from "../features/brands/hooks/useBrands";
+import useBrand from "../features/brands/hooks/useBrand";
 
 export default function BrandPage() {
   const {
@@ -22,11 +24,19 @@ export default function BrandPage() {
     addBrand,
     updateBrand,
     deleteBrand,
+    creating,
+    updating,
+    deleting,
+    loading,
+    error,
+    retry,
   } = useBrands();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const actionPending = useRef(false);
+  const brandDetails = useBrand(selectedBrand?.id, isEditOpen);
 
   const handleEdit = (brand) => {
     setSelectedBrand(brand);
@@ -38,25 +48,48 @@ export default function BrandPage() {
     setIsDeleteOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (!selectedBrand) return;
-
-    deleteBrand(selectedBrand.id);
-    setIsDeleteOpen(false);
-    setSelectedBrand(null);
+  const handleConfirmDelete = async () => {
+    if (!selectedBrand || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await deleteBrand(selectedBrand.id);
+      setIsDeleteOpen(false);
+      setSelectedBrand(null);
+      toast.success(response?.message || "Brand deleted successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete brand.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleCreate = (data) => {
-    addBrand(data);
-    setIsCreateOpen(false);
+  const handleCreate = async (data) => {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await addBrand(data);
+      setIsCreateOpen(false);
+      toast.success(response?.message || "Brand created successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create brand.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleUpdate = (data) => {
-    if (!selectedBrand) return;
-
-    updateBrand(selectedBrand.id, data);
-    setIsEditOpen(false);
-    setSelectedBrand(null);
+  const handleUpdate = async (data) => {
+    if (!selectedBrand || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await updateBrand(selectedBrand.id, data);
+      setIsEditOpen(false);
+      setSelectedBrand(null);
+      toast.success(response?.message || "Brand updated successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update brand.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
   return (
@@ -77,7 +110,14 @@ export default function BrandPage() {
         </Button>
       </div>
 
+      {error && (
+        <div role="alert" className="flex items-center gap-3 text-sm text-red-600">
+          <p>{error}</p>
+          <button type="button" onClick={() => retry()} className="cursor-pointer underline">Retry</button>
+        </div>
+      )}
       <BrandList
+        loading={loading}
         brands={brands}
         search={search}
         onSearch={handleSearch}
@@ -94,24 +134,35 @@ export default function BrandPage() {
 
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsCreateOpen(false); }}
         title="Create Brand"
       >
-        <BrandForm onSubmit={handleCreate} />
+        <BrandForm onSubmit={handleCreate} pending={creating} />
       </Modal>
 
       <Modal
         isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsEditOpen(false); }}
         title="Edit Brand"
       >
-        <BrandForm brand={selectedBrand} onSubmit={handleUpdate} />
+        {isEditOpen && (
+          <BrandForm
+            key={selectedBrand.id}
+            brand={brandDetails.data}
+            onSubmit={handleUpdate}
+            pending={updating}
+            loading={brandDetails.isPending || (brandDetails.isFetching && !updating)}
+            error={brandDetails.isError ? brandDetails.error : null}
+            onRetry={brandDetails.refetch}
+          />
+        )}
       </Modal>
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsDeleteOpen(false); }}
         onConfirm={handleConfirmDelete}
+        loading={deleting}
         title="Delete Brand"
         message={`Are you sure you want to delete "${selectedBrand?.name}"?`}
       />

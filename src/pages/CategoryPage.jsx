@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
-
-import CategoryList from "../features/categories/components/CategoryList";
-import CategoryForm from "../features/categories/components/CategoryForm";
-
 import Button from "../components/ui/Button";
-import Modal from "../components/ui/Modal";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import Modal from "../components/ui/Modal";
+import CategoryForm from "../features/categories/components/CategoryForm";
+import CategoryList from "../features/categories/components/CategoryList";
 import useCategories from "../features/categories/hooks/useCategories";
+import useCategory from "../features/categories/hooks/useCategory";
 
-export default function CategoryListPage() {
+export default function CategoryPage() {
   const {
     categories,
     search,
@@ -24,45 +24,76 @@ export default function CategoryListPage() {
     addCategory,
     updateCategory,
     deleteCategory,
+    creating,
+    updating,
+    deleting,
+    loading,
+    error,
+    retry,
   } = useCategories();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const actionPending = useRef(false);
+  const categoryDetails = useCategory(selectedCategory?.id, isEditOpen);
 
   const handleEdit = (category) => {
-    console.log("Category ID:", category.id);
     setSelectedCategory(category);
     setIsEditOpen(true);
   };
+
   const handleDelete = (category) => {
-    console.log("Category ID:", category.id);
     setSelectedCategory(category);
     setIsDeleteOpen(true);
   };
-  const handleConfirmDelete = () => {
-    if (!selectedCategory) return;
 
-    deleteCategory(selectedCategory.id);
-
-    setIsDeleteOpen(false);
-    setSelectedCategory(null);
+  const handleConfirmDelete = async () => {
+    if (!selectedCategory || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await deleteCategory(selectedCategory.id);
+      setIsDeleteOpen(false);
+      setSelectedCategory(null);
+      toast.success(response?.message || "Category deleted successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete category.");
+    } finally {
+      actionPending.current = false;
+    }
   };
-  const handleCreate = (data) => {
-    addCategory(data);
-    setIsCreateOpen(false);
-  };
-  const handleUpdate = (data) => {
-    if (!selectedCategory) return;
 
-    updateCategory(selectedCategory.id, data);
-
-    setIsEditOpen(false);
-    setSelectedCategory(null);
+  const handleCreate = async (data) => {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await addCategory(data);
+      setIsCreateOpen(false);
+      toast.success(response?.message || "Category created successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create category.");
+    } finally {
+      actionPending.current = false;
+    }
   };
+
+  const handleUpdate = async (data) => {
+    if (!selectedCategory || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await updateCategory(selectedCategory.id, data);
+      setIsEditOpen(false);
+      setSelectedCategory(null);
+      toast.success(response?.message || "Category updated successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update category.");
+    } finally {
+      actionPending.current = false;
+    }
+  };
+
   return (
     <div className="space-y-5">
-      {/* Page header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-[28px] font-bold tracking-tight text-[#03152B]">
@@ -79,10 +110,14 @@ export default function CategoryListPage() {
         </Button>
       </div>
 
-      {/* Category listing */}
+      {error && (
+        <div role="alert" className="flex items-center gap-3 text-sm text-red-600">
+          <p>{error}</p>
+          <button type="button" onClick={() => retry()} className="cursor-pointer underline">Retry</button>
+        </div>
+      )}
       <CategoryList
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        loading={loading}
         categories={categories}
         search={search}
         onSearch={handleSearch}
@@ -93,32 +128,43 @@ export default function CategoryListPage() {
         perPage={perPage}
         handlePerPageChange={handlePerPageChange}
         onPageChange={setPage}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
-      {/* Create modal */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsCreateOpen(false); }}
         title="Create Category"
-        size="md"
+        size="xl"
       >
-        <CategoryForm onSubmit={handleCreate} />
-      </Modal>
-      {/* Edit modal */}
-      <Modal
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        title="Edit Category"
-        size="md"
-      >
-        <CategoryForm category={selectedCategory} onSubmit={handleUpdate} />
+        <CategoryForm onSubmit={handleCreate} pending={creating} />
       </Modal>
 
-      {/* Delete modal */}
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => { if (!actionPending.current) setIsEditOpen(false); }}
+        title="Edit Category"
+        size="xl"
+      >
+        {isEditOpen && (
+          <CategoryForm
+            key={selectedCategory.id}
+            category={categoryDetails.data}
+            onSubmit={handleUpdate}
+            pending={updating}
+            loading={categoryDetails.isPending || (categoryDetails.isFetching && !updating)}
+            error={categoryDetails.isError ? categoryDetails.error : null}
+            onRetry={categoryDetails.refetch}
+          />
+        )}
+      </Modal>
+
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsDeleteOpen(false); }}
         onConfirm={handleConfirmDelete}
+        loading={deleting}
         title="Delete Category"
         message={`Are you sure you want to delete "${selectedCategory?.name}"?`}
       />

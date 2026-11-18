@@ -1,9 +1,12 @@
+import Table from "../../../components/ui/Table";
+import Button from "../../../components/ui/Button";
 import { Edit2, Search, Trash2 } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import TablePagination from "../../../components/ui/TablePagination";
 
 export default function ColorList({
   colors,
+  loading = false,
   search,
   onSearch,
   page,
@@ -17,8 +20,48 @@ export default function ColorList({
   onDelete,
 }) {
   const firstItem = totalItems === 0 ? 0 : startIndex + 1;
-  const lastItem = Math.min(startIndex + perPage, totalItems);
+  const lastItem = Math.min(startIndex + colors.length, totalItems);
   const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  // Custom cells preserve feature UI; Table owns rows, keys and empty states.
+  const columns = [
+    {
+      key: "selection", label: (<input type="checkbox" aria-label="Select all colors" />),
+      width: 48,
+      render: (_, color) => (<><input type="checkbox" aria-label={`Select ${color.name}`} /></>),
+    },
+    {
+      key: "number", label: "#",
+      width: 64,
+      cellClassName: "text-[#64748B]",
+      render: (_, color, index) => (<>{startIndex + index + 1}</>),
+    },
+    {
+      key: "color_name", label: "Color Name",
+      cellClassName: "font-semibold text-[#03152B]",
+      render: (_, color) => (<>{color.name}</>),
+    },
+    {
+      key: "color_code", label: "Color Code",
+      render: (_, color) => (<><div className="flex items-center gap-2 font-semibold text-[#03152B]">
+                    <span
+                      className="h-5 w-5 rounded-full border border-[#D7DFEA]"
+                      style={{ backgroundColor: color.colorCode }}
+                    />
+                    {color.colorCode}
+                  </div></>),
+    },
+    {
+      key: "created_date", label: "Created Date",
+      cellClassName: "text-[#64748B]",
+      render: (_, color) => (<>{color.createdAt}</>),
+    },
+    {
+      key: "actions", label: "Actions",
+      align: "right",
+      render: (_, color) => (<><Actions item={color} onEdit={onEdit} onDelete={onDelete} /></>),
+    },
+  ];
 
   return (
     <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
@@ -37,65 +80,20 @@ export default function ColorList({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px]">
-          <thead>
-            <tr className="border-b border-[#E5EAF1] bg-[#F8FAFD] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-              <th className="w-12 px-4 py-3">
-                <input type="checkbox" aria-label="Select all colors" />
-              </th>
-              <th className="w-16 px-4 py-3">#</th>
-              <th className="px-4 py-3">Color Name</th>
-              <th className="px-4 py-3">Color Code</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created Date</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {colors.map((color, index) => (
-              <tr
-                key={color.id}
-                className="border-b border-[#EEF2F7] text-sm transition last:border-0 hover:bg-[#F8FAFD]"
-              >
-                <td className="px-4 py-3">
-                  <input type="checkbox" aria-label={`Select ${color.name}`} />
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {startIndex + index + 1}
-                </td>
-                <td className="px-4 py-3 font-semibold text-[#03152B]">
-                  {color.name}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-[#03152B]">
-                    <span
-                      className="h-5 w-5 rounded-full border border-[#D7DFEA]"
-                      style={{ backgroundColor: color.colorCode }}
-                    />
-                    {color.colorCode}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {color.description || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={color.status} />
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {color.createdAt}
-                </td>
-                <td className="px-4 py-3">
-                  <Actions item={color} onEdit={onEdit} onDelete={onDelete} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Search and pagination stay in the feature; Table only renders the current page. */}
+      <Table
+        columns={columns}
+        data={colors}
+        rowKey="id"
+        label="Colors"
+        loading={loading}
+        loadingMessage="Loading colors..."
+        emptyMessage="No colors found."
+        minWidth={720}
+        className="!rounded-none !border-0"
+      />
 
-      <Footer
+      <TablePagination
         firstItem={firstItem}
         lastItem={lastItem}
         totalItems={totalItems}
@@ -111,45 +109,26 @@ export default function ColorList({
   );
 }
 
-function StatusBadge({ status }) {
-  return (
-    <span
-      className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
-        status === "Active"
-          ? "bg-[#DCFCE7] text-[#15803D]"
-          : "bg-[#F1F5F9] text-[#64748B]"
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
 
 function Actions({ item, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
-      <button
+      <Button
         type="button"
         onClick={() => onEdit(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`Edit ${item.name}`}
       >
         <Edit2 size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onDelete(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600"
+        variant="ghostDanger" size="iconSm"
         aria-label={`Delete ${item.name}`}
       >
         <Trash2 size={15} />
-      </button>
+      </Button>
     </div>
   );
-}
-
-function Footer({
-  ...props
-}) {
-  return <TablePagination {...props} />;
 }

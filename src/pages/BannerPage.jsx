@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import Button from "../components/ui/Button";
 import ConfirmModal from "../components/ui/ConfirmModal";
@@ -8,17 +8,26 @@ import BannerList from "../features/banners/components/BannerList";
 import useBanners from "../features/banners/hooks/useBanners";
 import toast from "react-hot-toast";
 // import Loading from "@/components/ui/Loading";
-
+import bannerService from "../features/banners/services/bannerService";
 export default function BannerPage() {
   const data = useBanners();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBanner, setSelectedBanner] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const deletePending = useRef(false);
 
-  const handleEdit = (banner) => {
-    setSelectedBanner(banner);
-    setIsEditOpen(true);
+  const handleEdit = async (banner) => {
+    try {
+      setSelectedBanner(null);
+      const response = await bannerService.getById(banner.id);
+      setSelectedBanner(response.data);
+      setIsEditOpen(true);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to load banner details.",
+      );
+    }
   };
 
   const handleDelete = (banner) => {
@@ -26,12 +35,19 @@ export default function BannerPage() {
     setIsDeleteOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (!selectedBanner) return;
-
-    data.deleteBanner(selectedBanner.id);
-    setIsDeleteOpen(false);
-    setSelectedBanner(null);
+  const handleConfirmDelete = async () => {
+    if (!selectedBanner || deletePending.current) return;
+    deletePending.current = true;
+    try {
+      const response = await data.deleteBanner(selectedBanner.id);
+      setIsDeleteOpen(false);
+      setSelectedBanner(null);
+      toast.success(response?.message || "Banner deleted successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete banner. Please try again.");
+    } finally {
+      deletePending.current = false;
+    }
   };
 
   const handleCreate = async (formData) => {
@@ -45,12 +61,23 @@ export default function BannerPage() {
     }
   };
 
-  const handleUpdate = (formData) => {
+  const handleUpdate = async (values) => {
     if (!selectedBanner) return;
 
-    data.updateBanner(selectedBanner.id, formData);
-    setIsEditOpen(false);
-    setSelectedBanner(null);
+    try {
+      const response = await data.update(selectedBanner.id, values);
+
+      setIsEditOpen(false);
+      setSelectedBanner(null);
+
+      toast.success(response.message || "Banner updated successfully.");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to update banner.",
+      );
+    }
   };
 
   return (
@@ -104,8 +131,11 @@ export default function BannerPage() {
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => {
+          if (!deletePending.current) setIsDeleteOpen(false);
+        }}
         onConfirm={handleConfirmDelete}
+        loading={data.deleting}
         title="Delete Banner"
         message={`Are you sure you want to delete "${selectedBanner?.title}"?`}
       />

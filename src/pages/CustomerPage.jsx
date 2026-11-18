@@ -1,86 +1,79 @@
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import Button from "../components/ui/Button";
-import ConfirmModal from "../components/ui/ConfirmModal";
-import Modal from "../components/ui/Modal";
-import CustomerForm from "../features/customers/components/CustomerForm";
+
 import CustomerList from "../features/customers/components/CustomerList";
 import useCustomers from "../features/customers/hooks/useCustomers";
 
 export default function CustomerPage() {
-  const data = useCustomers();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-
-  const handleEdit = (customer) => {
-    setSelectedCustomer(customer);
-    setIsEditOpen(true);
-  };
-
-  const handleDelete = (customer) => {
-    setSelectedCustomer(customer);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!selectedCustomer) return;
-    data.deleteCustomer(selectedCustomer.id);
-    setIsDeleteOpen(false);
-    setSelectedCustomer(null);
-  };
-
-  const handleCreate = (formData) => {
-    data.addCustomer(formData);
-    setIsCreateOpen(false);
-  };
-
-  const handleUpdate = (formData) => {
-    if (!selectedCustomer) return;
-    data.updateCustomer(selectedCustomer.id, formData);
-    setIsEditOpen(false);
-    setSelectedCustomer(null);
-  };
+  const {
+    customers,
+    page,
+    totalPages,
+    totalItems,
+    startIndex,
+    perPage,
+    handlePageChange,
+    handlePerPageChange,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useCustomers();
 
   return (
     <div className="space-y-5">
-      <Header title="Customers" subtitle="Manage customer profiles and contact details">
-        <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-          <Plus size={16} />
-          Add Customer
-        </Button>
-      </Header>
-
-      <CustomerList {...data} onEdit={handleEdit} onDelete={handleDelete} />
-
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Create Customer">
-        <CustomerForm onSubmit={handleCreate} />
-      </Modal>
-      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Customer">
-        <CustomerForm customer={selectedCustomer} onSubmit={handleUpdate} />
-      </Modal>
-      <ConfirmModal
-        isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Customer"
-        message={`Are you sure you want to delete "${selectedCustomer?.name}"?`}
-      />
-    </div>
-  );
-}
-
-function Header({ title, subtitle, children }) {
-  return (
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-      <div>
-        <h1 className="text-[28px] font-bold tracking-tight text-[#03152B]">
-          {title}
-        </h1>
-        <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-[28px] font-bold tracking-tight text-[#03152B]">
+            Customers
+          </h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Manage and view registered customers
+          </p>
+        </div>
       </div>
-      {children}
+
+      {isLoading ? (
+        <div className="rounded-lg border bg-white p-8 text-center text-[#64748B]">
+          Loading customers...
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-white p-6">
+          <p className="font-semibold text-red-600">
+            Failed to load customers
+          </p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            {error?.response?.data?.message ||
+              error?.message ||
+              "Please try again."}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-3 rounded-md bg-[#03152B] px-4 py-2 text-sm text-white"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <>
+          {isFetching && (
+            <p className="text-sm text-[#64748B]">
+              Updating customers...
+            </p>
+          )}
+
+          <CustomerList
+            customers={customers}
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            perPage={perPage}
+            onPageChange={handlePageChange}
+            handlePerPageChange={handlePerPageChange}
+          />
+        </>
+      )}
     </div>
   );
 }

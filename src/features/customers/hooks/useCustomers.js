@@ -1,108 +1,79 @@
+
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import customerService from "../services/customerService";
 
 export default function useCustomers() {
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "+1 (555) 123-4567",
-      orders: 8,
-      totalSpent: 1240,
-      status: "Active",
-      address: "12 Market Street, New York",
-      joinedAt: "Oct 12, 2023",
-    },
-    {
-      id: 2,
-      name: "Maya Chen",
-      email: "maya@example.com",
-      phone: "+1 (555) 987-6543",
-      orders: 5,
-      totalSpent: 860,
-      status: "Active",
-      address: "48 River Road, Seattle",
-      joinedAt: "Oct 08, 2023",
-    },
-    {
-      id: 3,
-      name: "Sam Wilson",
-      email: "sam@example.com",
-      phone: "+1 (555) 222-9010",
-      orders: 1,
-      totalSpent: 150,
-      status: "Inactive",
-      address: "77 Hill Avenue, Austin",
-      joinedAt: "Sep 29, 2023",
-    },
-  ]);
+  const {
+    data,
+    isPending,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["admin", "customers", page, perPage],
+    queryFn: () => customerService.getCustomers({
+      page,
+      perPage,
+    }),
+    staleTime: 30 * 1000,
+    retry: 1,
+  });
 
-  const addCustomer = (data) => {
-    setCustomers((prevCustomers) => [
-      {
-        id: Date.now(),
-        orders: 0,
-        totalSpent: 0,
-        joinedAt: "Today",
-        ...data,
-      },
-      ...prevCustomers,
-    ]);
-  };
+  const customers = (data?.data ?? []).map((customer) => ({
+    id: customer.id,
+    name: customer.username,
+    email: customer.email,
+    orders: Number(customer.totalOrders ?? 0),
+    totalSpent: customer.totalSpent ?? "0.00",
+    currency: customer.currency ?? "USD",
+    totalSpentByCurrency: customer.totalSpentByCurrency ?? {},
+    lastOrderAt: customer.lastOrderAt ?? null,
+  }));
 
-  const updateCustomer = (id, data) => {
-    setCustomers((prevCustomers) =>
-      prevCustomers.map((customer) =>
-        customer.id === id ? { ...customer, ...data } : customer,
-      ),
-    );
-  };
+  const pagination = data?.pagination ?? {};
 
-  const deleteCustomer = (id) => {
-    setCustomers((prevCustomers) =>
-      prevCustomers.filter((customer) => customer.id !== id),
-    );
-  };
+  const totalItems = Number(pagination.total ?? 0);
+  const totalPages = Number(pagination.total_page ?? 0);
+  const currentPage = Number(pagination.page_no ?? page);
+  const currentPerPage = Number(pagination.per_page ?? perPage);
 
-  const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(search.toLowerCase()) ||
-    customer.email.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  const totalPages = Math.ceil(filteredCustomers.length / perPage);
-  const startIndex = (page - 1) * perPage;
-  const paginatedCustomers = filteredCustomers.slice(
-    startIndex,
-    startIndex + perPage,
-  );
-
-  const handleSearch = (value) => {
-    setSearch(value);
-    setPage(1);
-  };
+  const startIndex = (currentPage - 1) * currentPerPage;
 
   const handlePerPageChange = (value) => {
     setPerPage(Number(value));
     setPage(1);
   };
 
+  const handlePageChange = (value) => {
+    const nextPage = Number(value);
+
+    if (
+      Number.isInteger(nextPage) &&
+      nextPage >= 1 &&
+      (totalPages === 0 || nextPage <= totalPages)
+    ) {
+      setPage(nextPage);
+    }
+  };
+
   return {
-    customers: paginatedCustomers,
-    search,
-    handleSearch,
-    page,
-    setPage,
+    customers,
+    page: currentPage,
+    perPage: currentPerPage,
     totalPages,
-    totalItems: filteredCustomers.length,
+    totalItems,
     startIndex,
-    perPage,
+    handlePageChange,
     handlePerPageChange,
-    addCustomer,
-    updateCustomer,
-    deleteCustomer,
+    isLoading: isPending,
+    isFetching,
+    isError,
+    error,
+    refetch,
   };
 }

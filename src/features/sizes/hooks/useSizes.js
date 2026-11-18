@@ -1,62 +1,73 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import sizeService from "../services/sizeService";
 
 export default function useSizes() {
+  const [sizes, setSizes] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const [pagination, setPagination] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [sizes, setSizes] = useState([
-    {
-      id: 1,
-      name: "US 7",
-      description: "Standard adult shoe size",
-      status: "Active",
-      createdAt: "Oct 24, 2023",
-    },
-    {
-      id: 2,
-      name: "US 8",
-      description: "Common running shoe size",
-      status: "Active",
-      createdAt: "Oct 20, 2023",
-    },
-    {
-      id: 3,
-      name: "US 9",
-      description: "Popular sneaker size",
-      status: "Active",
-      createdAt: "Oct 16, 2023",
-    },
-  ]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const addSize = (data) => {
-    const newSize = {
-      id: Date.now(),
-      status: "Active",
-      createdAt: "Today",
-      ...data,
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchSizes = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const params = {
+          pageNo: page,
+          perPage,
+          search: search.trim(),
+        };
+
+        const response = await sizeService.getAll(params, controller.signal);
+
+        if (controller.signal.aborted) return;
+
+        const lastPage = Math.max(1, response.pagination?.total_page ?? 1);
+
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+
+        const items = (response.data ?? []).map((size) => ({
+          ...size,
+
+          status:
+            size.is_active == null
+              ? size.status || "-"
+              : size.is_active
+                ? "Active"
+                : "Inactive",
+
+          createdAt: size.created_at || size.createdAt || "-",
+        }));
+        setSizes(items);
+        setPagination(response.pagination);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        setError(error.response?.data?.message || "Failed to load sizes.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
     };
+    fetchSizes();
 
-    setSizes((prevSizes) => [newSize, ...prevSizes]);
-  };
+    return () => controller.abort();
+  }, [page, perPage, search, refreshKey]);
 
-  const updateSize = (id, data) => {
-    setSizes((prevSizes) =>
-      prevSizes.map((size) => (size.id === id ? { ...size, ...data } : size)),
-    );
-  };
-
-  const deleteSize = (id) => {
-    setSizes((prevSizes) => prevSizes.filter((size) => size.id !== id));
-  };
-
-  const filteredSizes = sizes.filter((size) =>
-    size.name.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  const totalPages = Math.ceil(filteredSizes.length / perPage);
-  const startIndex = (page - 1) * perPage;
-  const paginatedSizes = filteredSizes.slice(startIndex, startIndex + perPage);
 
   const handleSearch = (value) => {
     setSearch(value);
@@ -68,19 +79,77 @@ export default function useSizes() {
     setPage(1);
   };
 
+  const create = async (values) => {
+    setCreating(true);
+    try {
+      const response = await sizeService.create(values);
+
+      setPage(1);
+      setRefreshKey((prev) => prev + 1);
+
+      return response;
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const update = async (id, values) => {
+    setUpdating(true);
+
+    try {
+      const response = await sizeService.update(id, values);
+
+      setRefreshKey((prev) => prev + 1);
+
+      return response;
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const deleteSize = async (id) => {
+    setDeleting(true);
+
+    try {
+      const response = await sizeService.deleteSize(id);
+
+      setSizes((current) => current.filter((size) => size.id !== id));
+
+      if (sizes.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1));
+      }
+
+      setRefreshKey((prev) => prev + 1);
+
+      return response;
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return {
-    sizes: paginatedSizes,
+    sizes,
+    loading,
+    error,
+
     search,
     handleSearch,
+
     page,
     setPage,
-    totalPages,
-    totalItems: filteredSizes.length,
-    startIndex,
     perPage,
+    totalPages: pagination?.total_page ?? 0,
+    totalItems: pagination?.total ?? 0,
+    startIndex: (page - 1) * perPage,
     handlePerPageChange,
-    addSize,
-    updateSize,
+
+    create,
+    creating,
+
+    update,
+    updating,
+
     deleteSize,
+    deleting,
   };
 }

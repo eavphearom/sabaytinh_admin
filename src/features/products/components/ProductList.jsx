@@ -1,3 +1,5 @@
+import Table from "../../../components/ui/Table";
+import Button from "../../../components/ui/Button";
 import { Edit2, Eye, Image, Search, Trash2 } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
@@ -23,10 +25,79 @@ export default function ProductList({
   onView,
   onEdit,
   onDelete,
+  loading = false,
 }) {
   const firstItem = totalItems === 0 ? 0 : startIndex + 1;
-  const lastItem = Math.min(startIndex + perPage, totalItems);
+  const lastItem = Math.min(startIndex + products.length, totalItems);
   const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  // Custom cells preserve feature UI; Table owns rows, keys and empty states.
+  const columns = [
+    {
+      key: "product", label: "Product",
+      render: (_, product) => (<><div className="flex items-center gap-3">
+                    <div className="flex h-18 w-18 shrink-0 items-center justify-center rounded-lg bg-[#FFF7ED] text-[#F97316]">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          loading="lazy"
+                          className="h-18 w-18 rounded-lg object-contain"
+                        />
+                      ) : (
+                        <Image size={18} />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#03152B]">
+                        {product.name}
+                      </p>
+                      <p className="text-xs text-[#64748B]">
+                        Created {product.createdAt}
+                      </p>
+                    </div>
+                  </div></>),
+    },
+    {
+      key: "category", label: "Category",
+      cellClassName: "text-[#64748B]",
+      render: (_, product) => (<>{product.category}</>),
+    },
+    {
+      key: "brand", label: "Brand",
+      cellClassName: "text-[#64748B]",
+      render: (_, product) => (<>{product.brand}</>),
+    },
+    {
+      key: "variants", label: "Variants",
+      cellClassName: "text-[#03152B]",
+      render: (_, product) => (<>{product.variants}</>),
+    },
+    {
+      key: "price_range", label: "Price Range",
+      cellClassName: "font-semibold text-[#03152B]",
+      render: (_, product) => (<>{product.priceRange}</>),
+    },
+    {
+      key: "stock", label: "Stock",
+      cellClassName: "text-[#03152B]",
+      render: (_, product) => (<>{product.stock}</>),
+    },
+    {
+      key: "status", label: "Status",
+      render: (_, product) => (<><StatusBadge status={product.status} /></>),
+    },
+    {
+      key: "actions", label: "Actions",
+      align: "right",
+      render: (_, product) => (<><Actions
+                    item={product}
+                    onView={onView}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  /></>),
+    },
+  ];
 
   return (
     <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
@@ -50,7 +121,7 @@ export default function ProductList({
               value={categoryFilter}
               onChange={(e) => onCategoryFilter(e.target.value)}
               options={categoryOptions}
-              placeholder="All Categories"
+              placeholder=""
             />
           </div>
 
@@ -59,81 +130,26 @@ export default function ProductList({
               value={brandFilter}
               onChange={(e) => onBrandFilter(e.target.value)}
               options={brandOptions}
-              placeholder="All Brands"
+              placeholder=""
             />
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px]">
-          <thead>
-            <tr className="border-b border-[#E5EAF1] bg-[#F8FAFD] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-              {/* <th className="w-12 px-4 py-3">
-                <input type="checkbox" aria-label="Select all products" />
-              </th> */}
-              <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">Brand</th>
-              <th className="px-4 py-3">Variants</th>
-              <th className="px-4 py-3">Price Range</th>
-              <th className="px-4 py-3">Stock</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => (
-              <tr
-                key={product.id}
-                className="border-b border-[#EEF2F7] text-sm transition last:border-0 hover:bg-[#F8FAFD]"
-              >
-                {/* <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${product.name}`}
-                  />
-                </td> */}
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#FFF7ED] text-[#F97316]">
-                      <Image size={18} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[#03152B]">
-                        {product.name}
-                      </p>
-                      <p className="text-xs text-[#64748B]">
-                        Created {product.createdAt}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">{product.category}</td>
-                <td className="px-4 py-3 text-[#64748B]">{product.brand}</td>
-                <td className="px-4 py-3 text-[#03152B]">{product.variants}</td>
-                <td className="px-4 py-3 font-semibold text-[#03152B]">
-                  {product.priceRange}
-                </td>
-                <td className="px-4 py-3 text-[#03152B]">{product.stock}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={product.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <Actions
-                    item={product}
-                    onView={onView}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Search and pagination stay in the feature; Table only renders the current page. */}
+      <Table
+        columns={columns}
+        data={products}
+        rowKey="id"
+        label="Products"
+        loading={loading}
+        loadingMessage="Loading products..."
+        emptyMessage="No products found."
+        minWidth={900}
+        className="!rounded-none !border-0"
+      />
 
-      <Footer
+      <TablePagination
         firstItem={firstItem}
         lastItem={lastItem}
         totalItems={totalItems}
@@ -169,34 +185,30 @@ function StatusBadge({ status }) {
 function Actions({ item, onView, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
-      <button
+      <Button
         type="button"
         onClick={() => onView(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`View ${item.sku}`}
       >
         <Eye size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onEdit(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`Edit ${item.name}`}
       >
         <Edit2 size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onDelete(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600"
+        variant="ghostDanger" size="iconSm"
         aria-label={`Delete ${item.name}`}
       >
         <Trash2 size={15} />
-      </button>
+      </Button>
     </div>
   );
-}
-
-function Footer({ ...props }) {
-  return <TablePagination {...props} />;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,36 +10,43 @@ import { useDropzone } from "react-dropzone";
 
 export default function ImageUpload({
   label = "Image",
+  existingImage = null,
   onChange,
   error,
   maxSize = 5 * 1024 * 1024,
 }) {
-  const [preview, setPreview] = useState(null);
-  const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [removed, setRemoved] = useState(false);
+
+  const localPreview = useMemo(() => {
+    if (!selectedFile) return null;
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    return () => {
+      if (localPreview) {
+        URL.revokeObjectURL(localPreview);
+      }
+    };
+  }, [localPreview]);
+
+  const preview = localPreview || (!removed ? existingImage : null);
 
   const onDrop = (acceptedFiles) => {
     const file = acceptedFiles[0];
-
     if (!file) return;
 
-    if (preview) {
-      URL.revokeObjectURL(preview);
-    }
-
-    setPreview(URL.createObjectURL(file));
-    setFileName(file.name);
+    setSelectedFile(file);
+    setRemoved(false);
     onChange?.(file);
   };
 
   const removeImage = (event) => {
     event.stopPropagation();
 
-    if (preview) {
-      URL.revokeObjectURL(preview);
-    }
-
-    setPreview(null);
-    setFileName("");
+    setSelectedFile(null);
+    setRemoved(true);
     onChange?.(null);
   };
 
@@ -52,14 +59,6 @@ export default function ImageUpload({
       maxFiles: 1,
       maxSize,
     });
-
-  useEffect(() => {
-    return () => {
-      if (preview) {
-        URL.revokeObjectURL(preview);
-      }
-    };
-  }, [preview]);
 
   return (
     <div className="w-full">
@@ -84,9 +83,10 @@ export default function ImageUpload({
             <div className="relative overflow-hidden rounded-lg border border-[#D7DFEA] bg-white">
               <img
                 src={preview}
-                alt="Preview"
-                className="h-32 w-full object-cover"
+                alt="Banner preview"
+                className="h-29 w-full object-cover"
               />
+
               <button
                 type="button"
                 onClick={removeImage}
@@ -98,21 +98,23 @@ export default function ImageUpload({
             </div>
 
             <div className="text-left">
-              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#15803D]">
+              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#DCFCE7] px-2.5 py-0 text-xs font-semibold text-[#15803D]">
                 <CheckCircle2 size={13} />
-                Image selected
+                {selectedFile ? "Image selected" : "Current image"}
               </div>
+
               <p className="truncate text-sm font-semibold text-[#03152B]">
-                {fileName}
+                {selectedFile ? selectedFile.name : "Existing banner image"}
               </p>
+
               <p className="mt-1 text-xs text-[#64748B]">
                 Click or drop a new file to replace this image.
               </p>
             </div>
           </div>
         ) : (
-          <div className="flex cursor-pointer flex-col items-center justify-center py-6 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#F97316] shadow-sm ring-1 ring-[#FED7AA]">
+          <div className="flex cursor-pointer flex-col items-center justify-center py-0 text-center">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#F97316] shadow-sm ring-1 ring-[#FED7AA]">
               {isDragActive ? (
                 <ImagePlus size={22} />
               ) : (
@@ -121,7 +123,7 @@ export default function ImageUpload({
             </div>
 
             <p className="text-sm font-semibold text-[#03152B]">
-              {isDragActive ? "Drop image here" : "Upload product image"}
+              {isDragActive ? "Drop image here" : "Upload banner image"}
             </p>
 
             <p className="mt-1 text-sm text-[#64748B]">

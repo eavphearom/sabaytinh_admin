@@ -6,7 +6,7 @@ import ImageUpload from "../../../components/ui/ImageUpload";
 import Input from "../../../components/ui/Input";
 import { brandSchema } from "../schemas/BrandSchema";
 
-export default function BrandForm({ brand = null, onSubmit }) {
+export default function BrandForm({ brand = null, onSubmit, pending = false, loading = false, error = null, onRetry }) {
   const {
     register,
     handleSubmit,
@@ -26,7 +26,7 @@ export default function BrandForm({ brand = null, onSubmit }) {
     if (brand) {
       reset({
         name: brand.name,
-        description: brand.description,
+        description: brand.description || "",
         logo: brand.logo || null,
       });
     } else {
@@ -38,8 +38,22 @@ export default function BrandForm({ brand = null, onSubmit }) {
     }
   }, [brand, reset]);
 
+  if (loading) {
+    return <p role="status" className="py-6 text-center text-sm text-[#64748B]">Loading brand details...</p>;
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="space-y-3 py-4 text-sm text-red-600">
+        <p>{error.response?.data?.message || error.message || "Failed to load brand."}</p>
+        {onRetry && <button type="button" onClick={() => onRetry()} className="cursor-pointer underline">Retry</button>}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <fieldset disabled={isSubmitting || pending} className="min-w-0 space-y-4">
       <Input
         label="Brand Name"
         placeholder="Enter brand name"
@@ -49,6 +63,7 @@ export default function BrandForm({ brand = null, onSubmit }) {
 
       <ImageUpload
         label="Logo"
+        existingImage={brand?.logo}
         error={errors.logo?.message}
         onChange={(file) => setValue("logo", file)}
       />
@@ -71,10 +86,11 @@ export default function BrandForm({ brand = null, onSubmit }) {
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" loading={isSubmitting}>
+        <Button type="submit" loading={isSubmitting || pending}>
           Save Brand
         </Button>
       </div>
+      </fieldset>
     </form>
   );
 }

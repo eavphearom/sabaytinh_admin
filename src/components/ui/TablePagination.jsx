@@ -1,3 +1,4 @@
+import Button from "./Button";
 import Select from "./Select";
 
 const perPageOptions = [
@@ -47,36 +48,44 @@ export default function TablePagination({
         )}
 
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
             disabled={page === 1}
             onClick={() => onPageChange(page - 1)}
-            className="cursor-pointer rounded-lg px-3 py-2 font-medium transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
+            variant="plain"
+            size="sm"
+            className="!font-medium hover:bg-[#F1F5F9] disabled:opacity-40"
           >
             Previous
-          </button>
+          </Button>
           {pages.map((pageNumber) => (
-            <button
+            <Button
               key={pageNumber}
+              variant="plain"
+              size="iconSm"
+              aria-label={"Page " + pageNumber}
+              aria-current={page === pageNumber ? "page" : undefined}
               type="button"
               onClick={() => onPageChange(pageNumber)}
               className={`h-8 w-8 cursor-pointer rounded-lg text-sm font-semibold transition ${
                 page === pageNumber
                   ? "bg-[#ef6a2c] text-white"
-                  : "hover:bg-[#ef6a2c]"
+                  : "hover:bg-[#ef6a2c]  hover:text-white"
               }`}
             >
               {pageNumber}
-            </button>
+            </Button>
           ))}
-          <button
+          <Button
             type="button"
             disabled={page === totalPages || totalPages === 0}
             onClick={() => onPageChange(page + 1)}
-            className="cursor-pointer rounded-lg px-3 py-2 font-medium transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
+            variant="plain"
+            size="sm"
+            className="!font-medium hover:bg-[#F1F5F9] disabled:opacity-40"
           >
             Next
-          </button>
+          </Button>
         </div>
       </div>
     </div>

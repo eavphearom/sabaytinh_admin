@@ -34,7 +34,7 @@ export default function BannerForm({ banner = null, onSubmit }) {
       reset({
         title: banner.title ?? "",
         subtitle: banner.subtitle ?? "",
-        image: banner.image ?? null,
+        image: null,
         is_active: banner.is_active ?? true,
       });
     } else {
@@ -139,10 +139,9 @@ export default function BannerForm({ banner = null, onSubmit }) {
       <div className="rounded-xl border border-[#D7DFEA] bg-white p-5">
         <ImageUpload
           label="Banner Image"
+          existingImage={banner?.image ?? null}
           error={errors.image?.message}
           onChange={(file) => {
-            console.log("Selected image:", file);
-
             setValue("image", file, {
               shouldValidate: true,
               shouldDirty: true,

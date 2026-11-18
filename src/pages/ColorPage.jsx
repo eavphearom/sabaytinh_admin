@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
 import Button from "../components/ui/Button";
 import ConfirmModal from "../components/ui/ConfirmModal";
@@ -6,6 +7,7 @@ import Modal from "../components/ui/Modal";
 import ColorForm from "../features/colors/components/ColorForm";
 import ColorList from "../features/colors/components/ColorList";
 import useColors from "../features/colors/hooks/useColors";
+import useColor from "../features/colors/hooks/useColor";
 
 export default function ColorPage() {
   const {
@@ -22,11 +24,19 @@ export default function ColorPage() {
     addColor,
     updateColor,
     deleteColor,
+    creating,
+    updating,
+    deleting,
+    loading,
+    error,
+    retry,
   } = useColors();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedColor, setSelectedColor] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const actionPending = useRef(false);
+  const colorDetails = useColor(selectedColor?.id, isEditOpen);
 
   const handleEdit = (color) => {
     setSelectedColor(color);
@@ -38,25 +48,48 @@ export default function ColorPage() {
     setIsDeleteOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (!selectedColor) return;
-
-    deleteColor(selectedColor.id);
-    setIsDeleteOpen(false);
-    setSelectedColor(null);
+  const handleConfirmDelete = async () => {
+    if (!selectedColor || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await deleteColor(selectedColor.id);
+      setIsDeleteOpen(false);
+      setSelectedColor(null);
+      toast.success(response?.message || "Color deleted successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete color.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleCreate = (data) => {
-    addColor(data);
-    setIsCreateOpen(false);
+  const handleCreate = async (data) => {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await addColor(data);
+      setIsCreateOpen(false);
+      toast.success(response?.message || "Color created successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create color.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleUpdate = (data) => {
-    if (!selectedColor) return;
-
-    updateColor(selectedColor.id, data);
-    setIsEditOpen(false);
-    setSelectedColor(null);
+  const handleUpdate = async (data) => {
+    if (!selectedColor || actionPending.current) return;
+    actionPending.current = true;
+    try {
+      const response = await updateColor(selectedColor.id, data);
+      setIsEditOpen(false);
+      setSelectedColor(null);
+      toast.success(response?.message || "Color updated successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update color.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
   return (
@@ -77,7 +110,14 @@ export default function ColorPage() {
         </Button>
       </div>
 
+      {error && (
+        <div role="alert" className="flex items-center gap-3 text-sm text-red-600">
+          <p>{error}</p>
+          <button type="button" onClick={() => retry()} className="cursor-pointer underline">Retry</button>
+        </div>
+      )}
       <ColorList
+        loading={loading}
         colors={colors}
         search={search}
         onSearch={handleSearch}
@@ -94,24 +134,35 @@ export default function ColorPage() {
 
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsCreateOpen(false); }}
         title="Create Color"
       >
-        <ColorForm onSubmit={handleCreate} />
+        <ColorForm onSubmit={handleCreate} pending={creating} />
       </Modal>
 
       <Modal
         isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsEditOpen(false); }}
         title="Edit Color"
       >
-        <ColorForm color={selectedColor} onSubmit={handleUpdate} />
+        {isEditOpen && (
+          <ColorForm
+            key={selectedColor.id}
+            color={colorDetails.data}
+            onSubmit={handleUpdate}
+            pending={updating}
+            loading={colorDetails.isPending || (colorDetails.isFetching && !updating)}
+            error={colorDetails.isError ? colorDetails.error : null}
+            onRetry={colorDetails.refetch}
+          />
+        )}
       </Modal>
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => { if (!actionPending.current) setIsDeleteOpen(false); }}
         onConfirm={handleConfirmDelete}
+        loading={deleting}
         title="Delete Color"
         message={`Are you sure you want to delete "${selectedColor?.name}"?`}
       />

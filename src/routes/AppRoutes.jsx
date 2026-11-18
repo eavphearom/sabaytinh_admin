@@ -1,5 +1,8 @@
-import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+
+import { ACCESS_DENIED_EVENT } from "../services/apiClient";
+import ForbiddenPage from "../pages/ForbiddenPage";
 
 // Layout
 import AdminLayout from "../components/layout/AdminLayout";
@@ -27,17 +30,47 @@ const ProductEditPage = lazy(() => import("../pages/ProductEditPage"));
 const SizePage = lazy(() => import("../pages/SizePage"));
 const UserRolePage = lazy(() => import("../pages/UserRolePage"));
 const VariantPage = lazy(() => import("../pages/VariantPage"));
+const StockMovementPage = lazy(() => import("../pages/StockMovementPage"));
+const DeliveryPage = lazy(() => import("../pages/DeliveryPage"));
 function PageSuspense() {
+  const { pathname, state } = useLocation();
+  // Successful saves can return to a list without flashing a page overlay.
+  const skipLoading = state?.skipPageLoading === true;
   return (
-    <Suspense fallback={<Loading overlay />}>
-      <Outlet />
+    <Suspense fallback={skipLoading ? null : <Loading overlay />}>
+      <PageContent key={pathname} skipLoading={skipLoading} />
     </Suspense>
+  );
+}
+
+function PageContent({ skipLoading = false }) {
+  const [ready, setReady] = useState(skipLoading);
+
+  useEffect(() => {
+    if (skipLoading) return;
+    const timer = window.setTimeout(() => setReady(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [skipLoading]);
+
+  // Only pathname changes remount this boundary; filters and modals stay mounted.
+  return (
+    <>
+      <Outlet />
+      {!skipLoading && !ready && <Loading overlay />}
+    </>
   );
 }
 export default function AppRoutes() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const denied = () => navigate("/forbidden", { replace: true });
+    window.addEventListener(ACCESS_DENIED_EVENT, denied);
+    return () => window.removeEventListener(ACCESS_DENIED_EVENT, denied);
+  }, [navigate]);
   return (
     <Routes>
+      <Route path="/forbidden" element={user ? <ForbiddenPage /> : <Navigate to="/login" replace />} />
       {/* Public */}
       <Route
         path="/login"
@@ -60,6 +93,9 @@ export default function AppRoutes() {
             <Route path="/products/create" element={<ProductCreatePage />} />
             <Route path="/products/:id/edit" element={<ProductEditPage />} />
             <Route path="/variants" element={<VariantPage />} />
+            <Route path="/stock-movement" element={<StockMovementPage />} />
+            <Route path="/settings/delivery" element={<DeliveryPage />} />
+            <Route path="/setting/delivery" element={<Navigate to="/settings/delivery" replace />} />
             <Route path="/orders" element={<OrderPage />} />
             <Route path="/customers" element={<CustomerPage />} />
             <Route path="/user-role" element={<UserRolePage />} />

@@ -1,36 +1,39 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import toast from "react-hot-toast";
+
 import Button from "../components/ui/Button";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import Modal from "../components/ui/Modal";
+
 import SizeForm from "../features/sizes/components/SizeForm";
 import SizeList from "../features/sizes/components/SizeList";
 import useSizes from "../features/sizes/hooks/useSizes";
+import sizeService from "../features/sizes/services/sizeService";
 
 export default function SizePage() {
-  const {
-    sizes,
-    search,
-    handleSearch,
-    page,
-    setPage,
-    totalPages,
-    totalItems,
-    startIndex,
-    perPage,
-    handlePerPageChange,
-    addSize,
-    updateSize,
-    deleteSize,
-  } = useSizes();
+  const data = useSizes();
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const handleEdit = (size) => {
-    setSelectedSize(size);
-    setIsEditOpen(true);
+  const actionPending = useRef(false);
+
+  const handleEdit = async (size) => {
+    try {
+      setSelectedSize(null);
+
+      const response = await sizeService.getById(size.id);
+
+      setSelectedSize(response.data);
+      setIsEditOpen(true);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to load size details.",
+      );
+    }
   };
 
   const handleDelete = (size) => {
@@ -38,25 +41,60 @@ export default function SizePage() {
     setIsDeleteOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (!selectedSize) return;
+  const handleConfirmDelete = async () => {
+    if (!selectedSize || actionPending.current) return;
 
-    deleteSize(selectedSize.id);
-    setIsDeleteOpen(false);
-    setSelectedSize(null);
+    actionPending.current = true;
+
+    try {
+      const response = await data.deleteSize(selectedSize.id);
+
+      setIsDeleteOpen(false);
+      setSelectedSize(null);
+
+      toast.success(response?.message || "Size deleted successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete size.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleCreate = (data) => {
-    addSize(data);
-    setIsCreateOpen(false);
+  const handleCreate = async (values) => {
+    if (actionPending.current) return;
+
+    actionPending.current = true;
+
+    try {
+      const response = await data.create(values);
+
+      setIsCreateOpen(false);
+
+      toast.success(response?.message || "Size created successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create size.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
-  const handleUpdate = (data) => {
-    if (!selectedSize) return;
+  const handleUpdate = async (values) => {
+    if (!selectedSize || actionPending.current) return;
 
-    updateSize(selectedSize.id, data);
-    setIsEditOpen(false);
-    setSelectedSize(null);
+    actionPending.current = true;
+
+    try {
+      const response = await data.update(selectedSize.id, values);
+
+      setIsEditOpen(false);
+      setSelectedSize(null);
+
+      toast.success(response?.message || "Size updated successfully.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update size.");
+    } finally {
+      actionPending.current = false;
+    }
   };
 
   return (
@@ -66,6 +104,7 @@ export default function SizePage() {
           <h1 className="text-[28px] font-bold tracking-tight text-[#03152B]">
             Sizes
           </h1>
+
           <p className="mt-1 text-sm text-[#64748B]">
             Manage size options used in product selects
           </p>
@@ -77,43 +116,60 @@ export default function SizePage() {
         </Button>
       </div>
 
-      <SizeList
-        sizes={sizes}
-        search={search}
-        onSearch={handleSearch}
-        page={page}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        startIndex={startIndex}
-        perPage={perPage}
-        handlePerPageChange={handlePerPageChange}
-        onPageChange={setPage}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      <div className="space-y-3">
+        {data.error && <p className="text-sm text-red-500">{data.error}</p>}
 
+        <SizeList
+          {...data}
+          onSearch={data.handleSearch}
+          onPageChange={data.setPage}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </div>
+
+      {/* Create */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          if (!actionPending.current) {
+            setIsCreateOpen(false);
+          }
+        }}
         title="Create Size"
       >
-        <SizeForm onSubmit={handleCreate} />
+        <SizeForm onSubmit={handleCreate} pending={data.creating} />
       </Modal>
 
+      {/* Edit */}
       <Modal
         isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
+        onClose={() => {
+          if (!actionPending.current) {
+            setIsEditOpen(false);
+          }
+        }}
         title="Edit Size"
       >
-        <SizeForm size={selectedSize} onSubmit={handleUpdate} />
+        <SizeForm
+          size={selectedSize}
+          onSubmit={handleUpdate}
+          pending={data.updating}
+        />
       </Modal>
 
+      {/* Delete */}
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => {
+          if (!actionPending.current) {
+            setIsDeleteOpen(false);
+          }
+        }}
         onConfirm={handleConfirmDelete}
+        loading={data.deleting}
         title="Delete Size"
-        message={`Are you sure you want to delete "${selectedSize?.name}"?`}
+        message={`Are you sure you want to delete "${selectedSize?.value}"?`}
       />
     </div>
   );

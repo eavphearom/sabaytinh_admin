@@ -8,8 +8,8 @@ const amount = (label, integer = false) => z.union([z.string(), z.number()])
 const stockSchema = z.object({
   size: required("Size"), stock: amount("Stock quantity", true), lowStock: amount("Low-stock alert", true),
 }).passthrough();
-const variantSchema = z.object({
-  code: required("Variant code"), color: required("Color"),
+const variantSchema = (generatedCodes) => z.object({
+  code: generatedCodes ? z.string().optional() : required("Variant code"), color: required("Color"),
   cost: amount("Cost"), price: amount("Selling price"), is_default: z.boolean(),
   images: z.array(z.any()).max(5, "Use up to 5 images"),
   stocks: z.array(stockSchema).min(1, "Add at least one size"),
@@ -22,16 +22,16 @@ const variantSchema = z.object({
   if (variant.images.length && variant.images.filter(image => image.is_primary).length !== 1)
     ctx.addIssue({ code: "custom", path: ["images"], message: "Choose exactly one primary image" });
 });
-export const productSchema = z.object({
+const buildSchema = (generatedCodes = false) => z.object({
   name: required("Product name").min(2, "Use at least 2 characters"),
-  code: required("Product code"), category: required("Category"), brand: required("Brand"),
+  code: generatedCodes ? z.string().optional() : required("Product code"), category: required("Category"), brand: required("Brand"),
   status: z.enum(["Active", "Inactive", "Draft"]),
   description: z.string().max(1000, "Description must not exceed 1000 characters"),
-  variants: z.array(variantSchema).min(1, "Add at least one variant"),
+  variants: z.array(variantSchema(generatedCodes)).min(1, "Add at least one variant"),
 }).passthrough().superRefine((product, ctx) => {
   if (product.variants.filter(v => v.is_default).length !== 1)
     ctx.addIssue({ code: "custom", path: ["variants"], message: "Select exactly one default variant" });
-  for (const field of ["color", "code"]) {
+  for (const field of (generatedCodes ? ["color"] : ["color", "code"])) {
     const seen = new Set();
     product.variants.forEach((variant, i) => {
       const value = variant[field].toLowerCase();
@@ -40,3 +40,6 @@ export const productSchema = z.object({
     });
   }
 });
+export const productSchema = buildSchema();
+// The create API generates codes; only user-editable fields are required.
+export const createProductSchema = buildSchema(true);

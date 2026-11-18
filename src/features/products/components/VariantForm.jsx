@@ -12,7 +12,7 @@ import Select from "../../../components/ui/Select";
 import MultiImageUpload, {
   UploadImagePreview,
 } from "../../../components/ui/MultiImageUpload";
-import { colorOptions } from "../productFormModel";
+import { colorOptions as defaultColorOptions } from "../productFormModel";
 import VariantStock from "./VariantStock";
 
 export default function VariantForm({
@@ -21,7 +21,9 @@ export default function VariantForm({
   onToggle,
   onRemove,
   onDefault,
+  lookupOptions,
 }) {
+  const colorOptions = lookupOptions?.colors || defaultColorOptions;
   const {
     control,
     register,
@@ -63,7 +65,7 @@ export default function VariantForm({
               Variant {index + 1}
             </span>
             <span className="block text-xs text-[#64748B]">
-              {variant.color || "Select color"}
+              {colorOptions.find(option => option.value === variant.color)?.label || variant.color || "Select color"}
             </span>
           </span>
         </button>
@@ -133,9 +135,10 @@ export default function VariantForm({
               <Heading icon={Tag} title="Variant Information" />
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input
-                  label="Variant Code *"
+                  label={lookupOptions ? "Variant Code" : "Variant Code *"}
                   {...register(name + ".code")}
-                  readOnly={variant.is_default}
+                  readOnly={!!lookupOptions || variant.is_default}
+                  placeholder={lookupOptions ? "Auto-generated" : ""}
                   error={error?.code?.message}
                 />
                 <Controller
@@ -208,7 +211,7 @@ export default function VariantForm({
                 description="Manage quantity and low-stock alerts."
               />
               <div className="mt-3">
-                <VariantStock index={index} />
+                <VariantStock index={index} sizeOptions={lookupOptions?.sizes} />
               </div>
             </section>
           </div>

@@ -2,78 +2,33 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CircleDollarSign,
-  MoreHorizontal,
   PackageCheck,
   ShoppingCart,
-  Star,
   Users,
 } from "lucide-react";
-import Button from "../components/ui/Button";
-
-const stats = [
-  {
-    label: "Total Revenue",
-    value: "$48,240",
-    change: "+12.5%",
-    trend: "up",
-    icon: CircleDollarSign,
-  },
-  {
-    label: "Orders",
-    value: "1,284",
-    change: "+8.2%",
-    trend: "up",
-    icon: ShoppingCart,
-  },
-  {
-    label: "Customers",
-    value: "4,392",
-    change: "+5.7%",
-    trend: "up",
-    icon: Users,
-  },
-  {
-    label: "Low Stock",
-    value: "18",
-    change: "-3.1%",
-    trend: "down",
-    icon: PackageCheck,
-  },
+import useDashboard from "../features/dashboard/hooks/useDashboard";
+import RecentOrders from "../features/dashboard/components/RecentOrders";
+const statDefinitions = [
+  { label: "Total Revenue", key: "total_revenue", icon: CircleDollarSign, money: true },
+  { label: "Orders", key: "orders", icon: ShoppingCart },
+  { label: "Customers", key: "customers", icon: Users },
+  { label: "Low Stock", key: "low_stock", icon: PackageCheck },
 ];
-
+function formatValue(value, currency) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return currency
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "code" }).format(number)
+    : new Intl.NumberFormat("en-US").format(number);
+}
+function formatChange(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(String(value).replace("%", ""));
+  if (!Number.isFinite(n)) return null;
+  return { change: `${n > 0 ? "+" : ""}${n}%`, trend: n >= 0 ? "up" : "down" };
+}
 const salesData = [44, 58, 42, 72, 64, 86, 78, 92, 84, 96, 88, 104];
-
-const recentOrders = [
-  {
-    id: "#ORD-1024",
-    customer: "Dara Sok",
-    product: "Air Runner Pro",
-    amount: "$129.00",
-    status: "Completed",
-  },
-  {
-    id: "#ORD-1023",
-    customer: "Maya Chen",
-    product: "Urban Court Low",
-    amount: "$89.00",
-    status: "Processing",
-  },
-  {
-    id: "#ORD-1022",
-    customer: "Sam Wilson",
-    product: "Trail Flex Max",
-    amount: "$149.00",
-    status: "Pending",
-  },
-  {
-    id: "#ORD-1021",
-    customer: "Nita Long",
-    product: "Classic Leather",
-    amount: "$99.00",
-    status: "Completed",
-  },
-];
-
 const topProducts = [
   {
     name: "Air Runner Pro",
@@ -94,33 +49,30 @@ const topProducts = [
     stock: 18,
   },
 ];
-
 const activities = [
   "New order placed for Air Runner Pro",
   "Classic Leather stock updated",
   "New customer account created",
   "Trail Flex Max moved to low stock",
 ];
-
-function StatusBadge({ status }) {
-  const colors = {
-    Completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    Processing: "bg-orange-50 text-orange-700 ring-orange-200",
-    Pending: "bg-amber-50 text-amber-700 ring-amber-200",
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
-        colors[status]
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
-
 export default function DashboardPage() {
+  const { dashboard, isLoading, isError, error, refetch } = useDashboard();
+  const stats = statDefinitions.map(({ key, money, ...definition }) => {
+    const metric = dashboard?.[key];
+    const entries = money
+      ? [Array.isArray(metric) ? metric.find((entry) => entry.currency === "USD") : null]
+      : [metric];
+    return {
+      ...definition,
+      money,
+      values: entries.map((entry, index) => ({
+        key: entry?.currency ?? index,
+        value: isLoading ? "Loading..." : formatValue(entry?.value, money ? entry?.currency : undefined),
+        ...formatChange(entry?.percentage_change),
+      })),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -132,18 +84,25 @@ export default function DashboardPage() {
             Track your shoe store performance and recent activity.
           </p>
         </div>
-
         {/* <div className="flex gap-3">
           <Button variant="secondary">Export</Button>
           <Button>New Product</Button>
         </div> */}
       </section>
-
+      {isError && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-white p-4">
+          <p className="font-semibold text-red-600">Failed to load dashboard statistics</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {error?.response?.data?.message || error?.message || "Please try again."}
+          </p>
+          <button type="button" onClick={() => refetch()} className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm text-white">
+            Retry
+          </button>
+        </div>
+      )}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
-          const TrendIcon = stat.trend === "up" ? ArrowUpRight : ArrowDownRight;
-
           return (
             <div
               key={stat.label}
@@ -154,32 +113,33 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-slate-500">
                     {stat.label}
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-950">
-                    {stat.value}
-                  </h2>
+                  {stat.values.map((entry) => {
+                    const TrendIcon = entry.trend === "up" ? ArrowUpRight : ArrowDownRight;
+                    return (
+                      <div key={entry.key} className="mt-2">
+                        <p className={`${stat.money ? "text-xl" : "text-2xl"} font-bold text-slate-950`}>{entry.value}</p>
+                        {entry.change && (
+                          <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className={`inline-flex items-center gap-1 font-semibold ${entry.trend === "up" ? "text-emerald-600" : "text-red-600"}`}>
+                              <TrendIcon size={16} />
+                              {entry.change}
+                            </span>
+                            <span className="text-slate-500">from last month</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="rounded-lg bg-orange-50 p-2 text-orange-700">
                   <Icon size={22} />
                 </div>
               </div>
-
-              <div className="mt-4 flex items-center gap-2 text-sm">
-                <span
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    stat.trend === "up" ? "text-emerald-600" : "text-red-600"
-                  }`}
-                >
-                  <TrendIcon size={16} />
-                  {stat.change}
-                </span>
-                <span className="text-slate-500">from last month</span>
-              </div>
             </div>
           );
         })}
       </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+      {/* <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -198,7 +158,6 @@ export default function DashboardPage() {
               <MoreHorizontal size={20} />
             </button>
           </div>
-
           <div className="flex h-72 items-end gap-3 border-b border-slate-100 pb-4">
             {salesData.map((value, index) => (
               <div
@@ -231,7 +190,6 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <div>
@@ -244,7 +202,6 @@ export default function DashboardPage() {
             </div>
             <Star size={20} className="text-amber-400" />
           </div>
-
           <div className="space-y-4">
             {topProducts.map((product) => (
               <div
@@ -277,69 +234,16 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">
-                Recent Orders
-              </h2>
-              <p className="text-sm text-slate-500">
-                Latest purchases from customers
-              </p>
-            </div>
-            <Button variant="secondary">View All</Button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="px-5 py-3">Order</th>
-                  <th className="px-5 py-3">Customer</th>
-                  <th className="px-5 py-3">Product</th>
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="border-b border-slate-100 text-sm last:border-0"
-                  >
-                    <td className="px-5 py-4 font-semibold text-slate-900">
-                      {order.id}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600">
-                      {order.customer}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600">
-                      {order.product}
-                    </td>
-                    <td className="px-5 py-4 font-semibold text-slate-900">
-                      {order.amount}
-                    </td>
-                    <td className="px-5 py-4">
-                      <StatusBadge status={order.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      </section> */}
+      <RecentOrders />
+      <section>
+        {/* <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-950">
             Activity
           </h2>
           <p className="text-sm text-slate-500">
             Store updates and alerts
           </p>
-
           <div className="mt-5 space-y-4">
             {activities.map((activity, index) => (
               <div key={activity} className="flex gap-3">
@@ -355,10 +259,8 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
       </section>
     </div>
   );
 }
-
-

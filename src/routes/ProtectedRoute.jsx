@@ -13,9 +13,9 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  // Logged in but not an admin
+  // Authentication and authorization failures have different destinations.
   if (user.role !== "ADMIN") {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/forbidden" replace />;
   }
   // Render protected child route
   return <Outlet />;

@@ -9,7 +9,7 @@ export default function Loading({
     <div
       className={cn(
         "fixed inset-0 z-[9999] flex items-center justify-center",
-        overlay ? "bg-black/20" : "bg-[#F5F7FB]",
+        overlay ? "bg-black/0" : "bg-[#F5F7FB]",
         className
       )}
     >

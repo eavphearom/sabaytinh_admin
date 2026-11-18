@@ -13,19 +13,21 @@ import Button from "../../../components/ui/Button";
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
-import { productSchema } from "../schemas/productSchema";
+import { productSchema, createProductSchema } from "../schemas/productSchema";
 import {
-  brandOptions,
-  categoryOptions,
+  brandOptions as defaultBrandOptions,
+  categoryOptions as defaultCategoryOptions,
   formValues,
   newVariant,
 } from "../productFormModel";
 import VariantForm from "./VariantForm";
 
-export default function ProductForm({ product, onSubmit, onCancel }) {
+export default function ProductForm({ product, onSubmit, onCancel, lookupOptions }) {
+  const categoryOptions = lookupOptions?.categories || defaultCategoryOptions;
+  const brandOptions = lookupOptions?.brands || defaultBrandOptions;
   const [initial] = useState(() => formValues(product));
   const methods = useForm({
-    resolver: zodResolver(productSchema),
+    resolver: zodResolver(lookupOptions ? createProductSchema : productSchema),
     defaultValues: initial,
     shouldFocusError: false,
   });
@@ -172,7 +174,8 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
               <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Input
                   label="Code"
-                  readOnly={!!product}
+                  readOnly={!!product || !!lookupOptions}
+                  placeholder={lookupOptions ? "Auto-generated" : ""}
                   {...register("code")}
                   error={errors.code?.message}
                 />
@@ -310,6 +313,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
                 <VariantForm
                   key={field.formKey}
                   index={index}
+                  lookupOptions={lookupOptions}
                   expanded={expanded.has(field.clientId)}
                   onToggle={() =>
                     setExpanded((current) => {

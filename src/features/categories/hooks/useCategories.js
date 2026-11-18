@@ -1,118 +1,77 @@
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useAuth } from "../../auth/hooks/useAuth";
+import categoryService from "../services/categoryService";
 
-// Category listing state and logic
 export default function useCategories() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const queryKey = ["categories", user?.id];
 
-  // Mock data - replace with API later
-
-  const [categories, setCategories] = useState([
-    {
-      id: 1,
-      name: "Electronics",
-      description: "Electronic products",
-      status: "Active",
-      createdAt: "Oct 24, 2023",
+  const query = useQuery({
+    queryKey: [...queryKey, { search: search.trim(), page, perPage }],
+    queryFn: async ({ signal }) => {
+      const response = await categoryService.getAll({
+        pageNo: page,
+        perPage,
+        search: search.trim(),
+      }, signal);
+      if (!Array.isArray(response.data)) throw new Error("Unexpected category list response.");
+      return {
+        categories: response.data.map(category => ({
+          ...category,
+          status: category.is_active ? "Active" : "Inactive",
+          createdAt: category.created_at || category.createdAt || "-",
+        })),
+        totalItems: response.pagination?.total ?? response.data.length,
+        totalPages: response.pagination?.total_page ?? 1,
+        page,
+        perPage,
+      };
     },
-    {
-      id: 2,
-      name: "Accessories",
-      description: "Product accessories",
-      status: "Active",
-      createdAt: "Oct 20, 2023",
-    },
-    {
-      id: 3,
-      name: "Clothing",
-      description: "Fashion and clothing",
-      status: "Inactive",
-      createdAt: "Oct 15, 2023",
-    },
-    {
-      id: 4,
-      name: "Shoes",
-      description: "Shoes products",
-      status: "Active",
-      createdAt: "Oct 12, 2023",
-    },
-    {
-      id: 5,
-      name: "Phones",
-      description: "Mobile phones",
-      status: "Inactive",
-      createdAt: "Oct 10, 2023",
-    },
-    {
-      id: 6,
-      name: "Computers",
-      description: "Computer products",
-      status: "Active",
-      createdAt: "Oct 04, 2023",
-    },
-  ]);
-  const addCategory = (data) => {
-    const newCategory = {
-      id: Date.now(),
-      status: "Active",
-      createdAt: "Today",
-      ...data,
-    };
+    placeholderData: keepPreviousData,
+    // Reuse fresh results for 30 seconds when returning to this page.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: (count, error) => count < 1 && (!error.response || error.response.status >= 500),
+  });
 
-    setCategories((prevCategories) => [newCategory, ...prevCategories]);
-  };
-  const deleteCategory = (id) => {
-    setCategories((prevCategories) =>
-      prevCategories.filter((category) => category.id !== id),
-    );
-  };
-  const updateCategory = (id, data) => {
-    setCategories((prevCategories) =>
-      prevCategories.map((category) =>
-        category.id === id ? { ...category, ...data } : category,
-      ),
-    );
-  };
-  // Search categories
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  // Calculate pagination
-  const totalPages = Math.ceil(filteredCategories.length / perPage);
-
-  const startIndex = (page - 1) * perPage;
-
-  const paginatedCategories = filteredCategories.slice(
-    startIndex,
-    startIndex + perPage,
-  );
-
-  // Update search and reset pagination
-  const handleSearch = (value) => {
-    setSearch(value);
-    setPage(1);
-  };
-
-  const handlePerPageChange = (value) => {
-    setPerPage(Number(value));
-    setPage(1);
-  };
+  // Refresh cached lists and details after a successful change.
+  const refresh = () => queryClient.invalidateQueries({ queryKey });
+  const createMutation = useMutation({ mutationFn: categoryService.create, onSuccess: refresh });
+  const updateMutation = useMutation({ mutationFn: categoryService.update, onSuccess: refresh });
+  const deleteMutation = useMutation({
+    mutationFn: categoryService.remove,
+    onSuccess: refresh,
+  });
+  const lastPage = Math.max(1, Number(query.data?.totalPages) || 1);
+  if (query.isSuccess && !query.isPlaceholderData && page > lastPage) {
+    setPage(lastPage);
+  }
 
   return {
-    categories: paginatedCategories,
+    categories: query.data?.categories ?? [],
     search,
-    handleSearch,
-    page,
-    setPage,
-    totalPages,
-    totalItems: filteredCategories.length,
-    startIndex,
+    handleSearch: value => { setSearch(value); setPage(1); },
+    page: query.data?.page ?? page,
+    setPage: value => { if (!query.isPlaceholderData) setPage(value); },
+    totalPages: query.data?.totalPages ?? 0,
+    totalItems: query.data?.totalItems ?? 0,
+    startIndex: ((query.data?.page ?? page) - 1) * (query.data?.perPage ?? perPage),
     perPage,
-    handlePerPageChange,
-    addCategory,
-    deleteCategory,
-    updateCategory,
+    handlePerPageChange: value => { setPerPage(Number(value)); setPage(1); },
+    addCategory: createMutation.mutateAsync,
+    updateCategory: (id, values) => updateMutation.mutateAsync({ id, values }),
+    deleteCategory: deleteMutation.mutateAsync,
+    creating: createMutation.isPending,
+    updating: updateMutation.isPending,
+    deleting: deleteMutation.isPending,
+    loading: query.isPending,
+    fetching: query.isFetching,
+    error: query.error?.response?.data?.message || query.error?.message || "",
+    retry: query.refetch,
   };
 }

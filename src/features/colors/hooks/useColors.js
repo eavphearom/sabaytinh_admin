@@ -1,91 +1,100 @@
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
+import { useAuth } from "../../auth/hooks/useAuth";
+import colorService from "../services/colorService";
 
 export default function useColors() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const queryKey = ["colors", user?.id];
 
-  const [colors, setColors] = useState([
-    {
-      id: 1,
-      name: "Midnight Navy",
-      colorCode: "#1E2B3F",
-      description: "Dark navy color used for premium sneakers",
-      status: "Active",
-      createdAt: "Oct 24, 2023",
+  const query = useQuery({
+    queryKey: [...queryKey, { search: search.trim(), page, perPage }],
+    queryFn: async ({ signal }) => {
+      const response = await colorService.getAll(
+        {
+          pageNo: page,
+          perPage,
+          search: search.trim(),
+        },
+        signal,
+      );
+      if (!Array.isArray(response.data))
+        throw new Error("Unexpected color list response.");
+      return {
+        colors: response.data.map((color) => ({
+          ...color,
+          colorCode: color.hex_code,
+          createdAt: color.created_at || color.createdAt || "-",
+        })),
+        totalItems: response.pagination?.total ?? response.data.length,
+        totalPages: response.pagination?.total_page ?? 1,
+        page,
+        perPage,
+      };
     },
-    {
-      id: 2,
-      name: "Royal Blue",
-      colorCode: "#F97316",
-      description: "Primary blue accent color",
-      status: "Active",
-      createdAt: "Oct 18, 2023",
-    },
-    {
-      id: 3,
-      name: "Cool Gray",
-      colorCode: "#64748B",
-      description: "Neutral gray for classic footwear",
-      status: "Inactive",
-      createdAt: "Oct 08, 2023",
-    },
-  ]);
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: (count, error) =>
+      count < 1 && (!error.response || error.response.status >= 500),
+  });
 
-  const addColor = (data) => {
-    const newColor = {
-      id: Date.now(),
-      status: "Active",
-      createdAt: "Today",
-      ...data,
-    };
-
-    setColors((prevColors) => [newColor, ...prevColors]);
-  };
-
-  const updateColor = (id, data) => {
-    setColors((prevColors) =>
-      prevColors.map((color) =>
-        color.id === id ? { ...color, ...data } : color,
-      ),
-    );
-  };
-
-  const deleteColor = (id) => {
-    setColors((prevColors) => prevColors.filter((color) => color.id !== id));
-  };
-
-  const filteredColors = colors.filter((color) =>
-    color.name.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  const totalPages = Math.ceil(filteredColors.length / perPage);
-  const startIndex = (page - 1) * perPage;
-  const paginatedColors = filteredColors.slice(startIndex, startIndex + perPage);
-
-  const handleSearch = (value) => {
-    setSearch(value);
-    setPage(1);
-  };
-
-  const handlePerPageChange = (value) => {
-    setPerPage(Number(value));
-    setPage(1);
-  };
+  const refresh = () => queryClient.invalidateQueries({ queryKey });
+  const createMutation = useMutation({
+    mutationFn: colorService.create,
+    onSuccess: refresh,
+  });
+  const updateMutation = useMutation({
+    mutationFn: colorService.update,
+    onSuccess: refresh,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: colorService.remove,
+    onSuccess: refresh,
+  });
+  const lastPage = Math.max(1, Number(query.data?.totalPages) || 1);
+  if (query.isSuccess && !query.isPlaceholderData && page > lastPage) {
+    setPage(lastPage);
+  }
 
   return {
-    colors: paginatedColors,
+    colors: query.data?.colors ?? [],
     search,
-    handleSearch,
-    page,
-    setPage,
-    totalPages,
-    totalItems: filteredColors.length,
-    startIndex,
+    handleSearch: (value) => {
+      setSearch(value);
+      setPage(1);
+    },
+    page: query.data?.page ?? page,
+    setPage: (value) => {
+      if (!query.isPlaceholderData) setPage(value);
+    },
+    totalPages: query.data?.totalPages ?? 0,
+    totalItems: query.data?.totalItems ?? 0,
+    startIndex:
+      ((query.data?.page ?? page) - 1) * (query.data?.perPage ?? perPage),
     perPage,
-    handlePerPageChange,
-    addColor,
-    updateColor,
-    deleteColor,
+    handlePerPageChange: (value) => {
+      setPerPage(Number(value));
+      setPage(1);
+    },
+    addColor: createMutation.mutateAsync,
+    updateColor: (id, values) => updateMutation.mutateAsync({ id, values }),
+    deleteColor: deleteMutation.mutateAsync,
+    creating: createMutation.isPending,
+    updating: updateMutation.isPending,
+    deleting: deleteMutation.isPending,
+    loading: query.isPending,
+    fetching: query.isFetching,
+    error: query.error?.response?.data?.message || query.error?.message || "",
+    retry: query.refetch,
   };
 }

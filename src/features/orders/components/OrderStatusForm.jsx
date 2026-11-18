@@ -4,39 +4,50 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Button from "../../../components/ui/Button";
 import Select from "../../../components/ui/Select";
+import Input from "../../../components/ui/Input";
 
 const statusSchema = z.object({
   status: z.string().min(1, "Order status is required"),
+  note: z.string().trim(),
 });
 
-const statusOptions = [
-  { value: "Pending", label: "Pending" },
-  { value: "Processing", label: "Processing" },
-  { value: "Shipped", label: "Shipped" },
-  { value: "Delivered", label: "Delivered" },
-];
-
-export default function OrderStatusForm({ order, onSubmit, onCancel }) {
+export default function OrderStatusForm({ order, onSubmit, onCancel, statusOptions = [], loading = false }) {
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(statusSchema),
     defaultValues: {
-      status: order?.status || "Pending",
+      status: "",
+      note: "",
     },
   });
 
   useEffect(() => {
+    // Match the response label to its real API value, without inventing a fallback.
+    const current = String(order?.order_status ?? order?.status ?? "").toLowerCase();
+    const selected = statusOptions.find((option) =>
+      option.value.toLowerCase() === current || option.label.toLowerCase() === current);
     reset({
-      status: order?.status || "Pending",
+      status: selected?.value ?? "",
+      note: "",
     });
-  }, [order, reset]);
+  }, [order, reset, statusOptions]);
+
+  // Only submit values supplied by the settings endpoint.
+  const submitStatus = async (values) => {
+    if (!statusOptions.some((option) => option.value === values.status)) {
+      setError("status", { message: "Select a valid order status" });
+      return;
+    }
+    await onSubmit(values);
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(submitStatus)} className="space-y-5">
       <div className="rounded-lg border border-[#D7DFEA] bg-[#F8FAFD] p-4">
         <p className="text-sm font-semibold text-[#03152B]">
           #{order?.orderNo}
@@ -53,12 +64,14 @@ export default function OrderStatusForm({ order, onSubmit, onCancel }) {
         error={errors.status?.message}
         {...register("status")}
       />
+      {/* The status endpoint accepts a note along with the new order status. */}
+      <Input label="Note" placeholder="Preparing the order" {...register("note")} />
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" loading={isSubmitting}>
+        <Button type="submit" loading={isSubmitting} disabled={loading || !statusOptions.length}>
           Update Status
         </Button>
       </div>

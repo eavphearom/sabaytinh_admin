@@ -1,3 +1,4 @@
+import Button from "../../../components/ui/Button";
 import { Edit2, Image, Search, Trash2 } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
@@ -151,22 +152,22 @@ function StatusBadge({ isActive }) {
 function Actions({ item, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
-      <button
+      <Button
         type="button"
         onClick={() => onEdit(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`Edit ${item.title}`}
       >
         <Edit2 size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onDelete(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600"
+        variant="ghostDanger" size="iconSm"
         aria-label={`Delete ${item.title}`}
       >
         <Trash2 size={15} />
-      </button>
+      </Button>
     </div>
   );
 }

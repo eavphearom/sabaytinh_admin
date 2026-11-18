@@ -1,3 +1,5 @@
+import Table from "../../../components/ui/Table";
+import Button from "../../../components/ui/Button";
 import { Edit2, Search, Trash2 } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import TablePagination from "../../../components/ui/TablePagination";
@@ -15,10 +17,74 @@ export default function SizeList({
   onPageChange,
   onEdit,
   onDelete,
+  loading = false,
 }) {
   const firstItem = totalItems === 0 ? 0 : startIndex + 1;
-  const lastItem = Math.min(startIndex + perPage, totalItems);
+  const lastItem = Math.min(startIndex + sizes.length, totalItems);
   const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  // Custom cells preserve feature UI; Table owns rows, keys and empty states.
+  const columns = [
+    {
+      key: "selection",
+      label: <input type="checkbox" aria-label="Select all sizes" />,
+      width: 48,
+      render: (_, size) => (
+        <>
+          <input type="checkbox" aria-label={`Select ${size.value}`} />
+        </>
+      ),
+    },
+    {
+      key: "number",
+      label: "#",
+      width: 64,
+      cellClassName: "text-[#64748B]",
+      render: (_, size, index) => <>{startIndex + index + 1}</>,
+    },
+    {
+      key: "size",
+      label: "Size",
+      render: (_, size) => (
+        <>
+          <span className="inline-flex rounded-md border border-[#D7DFEA] bg-[#F8FAFD] px-2.5 py-1 text-sm font-semibold text-[#03152B]">
+            {size.value}
+          </span>
+        </>
+      ),
+    },
+    {
+      key: "description",
+      label: "Description",
+      cellClassName: "text-[#64748B]",
+      render: (_, size) => <>{size.description || "-"}</>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (_, size) => (
+        <>
+          <StatusBadge status={size.status} />
+        </>
+      ),
+    },
+    {
+      key: "created_date",
+      label: "Created Date",
+      cellClassName: "text-[#64748B]",
+      render: (_, size) => <>{size.createdAt}</>,
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      align: "right",
+      render: (_, size) => (
+        <>
+          <Actions item={size} onEdit={onEdit} onDelete={onDelete} />
+        </>
+      ),
+    },
+  ];
 
   return (
     <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
@@ -37,57 +103,20 @@ export default function SizeList({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px]">
-          <thead>
-            <tr className="border-b border-[#E5EAF1] bg-[#F8FAFD] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-              <th className="w-12 px-4 py-3">
-                <input type="checkbox" aria-label="Select all sizes" />
-              </th>
-              <th className="w-16 px-4 py-3">#</th>
-              <th className="px-4 py-3">Size Name</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created Date</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sizes.map((size, index) => (
-              <tr
-                key={size.id}
-                className="border-b border-[#EEF2F7] text-sm transition last:border-0 hover:bg-[#F8FAFD]"
-              >
-                <td className="px-4 py-3">
-                  <input type="checkbox" aria-label={`Select ${size.name}`} />
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {startIndex + index + 1}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex rounded-md border border-[#D7DFEA] bg-[#F8FAFD] px-2.5 py-1 text-sm font-semibold text-[#03152B]">
-                    {size.name}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {size.description || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={size.status} />
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">
-                  {size.createdAt}
-                </td>
-                <td className="px-4 py-3">
-                  <Actions item={size} onEdit={onEdit} onDelete={onDelete} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Search and pagination stay in the feature; Table only renders the current page. */}
+      <Table
+        columns={columns}
+        data={sizes}
+        rowKey="id"
+        label="Sizes"
+        loading={loading}
+        loadingMessage="Loading sizes..."
+        emptyMessage="No sizes found."
+        minWidth={680}
+        className="!rounded-none !border-0"
+      />
 
-      <Footer
+      <TablePagination
         firstItem={firstItem}
         lastItem={lastItem}
         totalItems={totalItems}
@@ -120,28 +149,24 @@ function StatusBadge({ status }) {
 function Actions({ item, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
-      <button
+      <Button
         type="button"
         onClick={() => onEdit(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
-        aria-label={`Edit ${item.name}`}
+        variant="ghostBrand"
+        size="iconSm"
+        aria-label={`Edit ${item.value}`}
       >
         <Edit2 size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onDelete(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600"
-        aria-label={`Delete ${item.name}`}
+        variant="ghostDanger"
+        size="iconSm"
+        aria-label={`Delete ${item.value}`}
       >
         <Trash2 size={15} />
-      </button>
+      </Button>
     </div>
   );
-}
-
-function Footer({
-  ...props
-}) {
-  return <TablePagination {...props} />;
 }

@@ -1,3 +1,4 @@
+import Button from "../../../components/ui/Button";
 import { Edit2, Eye, Image, Search, Trash2 } from "lucide-react";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
@@ -79,7 +80,7 @@ export default function VariantList({
                 <td className="px-4 py-3">
                   <input type="checkbox" aria-label={`Select ${variant.sku}`} />
                 </td>
-               
+
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#FFF7ED] text-[#F97316]">
@@ -162,36 +163,34 @@ function StatusBadge({ status }) {
 function Actions({ item, onView, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
-      <button
+      <Button
         type="button"
         onClick={() => onView(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`View ${item.sku}`}
       >
         <Eye size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onEdit(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-[#FFF7ED] hover:text-[#F97316]"
+        variant="ghostBrand" size="iconSm"
         aria-label={`Edit ${item.sku}`}
       >
         <Edit2 size={15} />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => onDelete(item)}
-        className="cursor-pointer rounded-lg p-2 text-[#64748B] transition hover:bg-red-50 hover:text-red-600"
+        variant="ghostDanger" size="iconSm"
         aria-label={`Delete ${item.sku}`}
       >
         <Trash2 size={15} />
-      </button>
+      </Button>
     </div>
   );
 }
 
-function Footer({
-  ...props
-}) {
+function Footer({ ...props }) {
   return <TablePagination {...props} />;
 }

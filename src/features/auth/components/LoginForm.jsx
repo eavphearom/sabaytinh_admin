@@ -129,7 +129,7 @@ export default function LoginForm() {
           icon={Mail}
           name="email"
           type="email"
-          placeholder="hello@goshoes.com"
+          placeholder="admin@gmail.com"
           value={form.email}
           onChange={handleChange}
           error={errors.email}
@@ -140,7 +140,7 @@ export default function LoginForm() {
           icon={LockKeyhole}
           name="password"
           type={showPassword ? "text" : "password"}
-          placeholder="Enter your password"
+          placeholder="12345678"
           value={form.password}
           onChange={handleChange}
           error={errors.password}

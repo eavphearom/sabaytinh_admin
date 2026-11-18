@@ -1,64 +1,101 @@
-import { Edit2, Search, Trash2 } from "lucide-react";
-import Input from "../../../components/ui/Input";
+
+import Table from "../../../components/ui/Table";
 import TablePagination from "../../../components/ui/TablePagination";
 
-export default function CustomerList({ customers, search, onSearch, page, totalPages, totalItems, startIndex, perPage, handlePerPageChange, onPageChange, onEdit, onDelete }) {
+export default function CustomerList({
+  customers = [],
+  page,
+  totalPages,
+  totalItems,
+  startIndex,
+  perPage,
+  handlePerPageChange,
+  onPageChange,
+}) {
   const firstItem = totalItems === 0 ? 0 : startIndex + 1;
-  const lastItem = Math.min(startIndex + perPage, totalItems);
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const lastItem = Math.min(
+    startIndex + customers.length,
+    totalItems
+  );
+
+  const pages = Array.from(
+    { length: totalPages },
+    (_, index) => index + 1
+  );
+
+  const columns = [
+    {
+      key: "name",
+      label: "Customer",
+      render: (name, customer) => (
+        <>
+          <p className="font-semibold text-[#03152B]">
+            {name || "-"}
+          </p>
+          <p className="text-xs text-[#64748B]">
+            {customer.email}
+          </p>
+        </>
+      ),
+    },
+    {
+      key: "orders",
+      label: "Total Orders",
+    },
+    {
+      key: "totalSpent",
+      label: "Total Spent",
+      cellClassName: "font-semibold",
+      render: (value, customer) =>
+        formatMoney(value, customer.currency),
+    },
+    {
+      key: "currency",
+      label: "Currency",
+    },
+    {
+      key: "lastOrderAt",
+      label: "Last Order",
+      cellClassName: "text-[#64748B]",
+      render: (value) => value || "No orders yet",
+    },
+  ];
 
   return (
     <div className="rounded-lg border border-[#D7DFEA] bg-white shadow-sm">
-      <div className="border-b border-[#E5EAF1] p-4">
-        <div className="relative w-full sm:w-72">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A98AA]" />
-          <Input placeholder="Search customer..." value={search} onChange={(e) => onSearch(e.target.value)} className="h-9 pl-9" />
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px]">
-          <thead>
-            <tr className="border-b border-[#E5EAF1] bg-[#F8FAFD] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Phone</th>
-              <th className="px-4 py-3">Orders</th>
-              <th className="px-4 py-3">Total Spent</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Joined</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((customer) => (
-              <tr key={customer.id} className="border-b border-[#EEF2F7] text-sm transition last:border-0 hover:bg-[#F8FAFD]">
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-[#03152B]">{customer.name}</p>
-                  <p className="text-xs text-[#64748B]">{customer.email}</p>
-                </td>
-                <td className="px-4 py-3 text-[#64748B]">{customer.phone}</td>
-                <td className="px-4 py-3 text-[#03152B]">{customer.orders}</td>
-                <td className="px-4 py-3 font-semibold text-[#03152B]">${customer.totalSpent}</td>
-                <td className="px-4 py-3"><StatusBadge status={customer.status} /></td>
-                <td className="px-4 py-3 text-[#64748B]">{customer.joinedAt}</td>
-                <td className="px-4 py-3"><Actions item={customer} onEdit={onEdit} onDelete={onDelete} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Footer firstItem={firstItem} lastItem={lastItem} totalItems={totalItems} label="customers" page={page} pages={pages} totalPages={totalPages} perPage={perPage} onPageChange={onPageChange} handlePerPageChange={handlePerPageChange} />
+      <Table
+        columns={columns}
+        data={customers}
+        label="Customers"
+        minWidth={700}
+        emptyMessage="No customers found."
+        className="!rounded-none !border-0"
+      />
+
+      <TablePagination
+        firstItem={firstItem}
+        lastItem={lastItem}
+        totalItems={totalItems}
+        label="customers"
+        page={page}
+        pages={pages}
+        totalPages={totalPages}
+        perPage={perPage}
+        onPageChange={onPageChange}
+        handlePerPageChange={handlePerPageChange}
+      />
     </div>
   );
 }
 
-function StatusBadge({ status }) {
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${status === "Active" ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#F1F5F9] text-[#64748B]"}`}>{status}</span>;
-}
+function formatMoney(value, currency) {
+  const amount = Number(value);
 
-function Actions({ item, onEdit, onDelete }) {
-  return <div className="flex justify-end gap-1"><button type="button" onClick={() => onEdit(item)} className="cursor-pointer rounded-lg p-2 text-[#64748B] hover:bg-[#FFF7ED] hover:text-[#F97316]" aria-label={`Edit ${item.name}`}><Edit2 size={15} /></button><button type="button" onClick={() => onDelete(item)} className="cursor-pointer rounded-lg p-2 text-[#64748B] hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${item.name}`}><Trash2 size={15} /></button></div>;
-}
+  if (!Number.isFinite(amount)) return "-";
 
-function Footer(props) {
-  return <TablePagination {...props} />;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+  }).format(amount);
 }

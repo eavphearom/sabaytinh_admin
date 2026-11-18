@@ -1,27 +1,28 @@
 import { Ban, Box, Boxes, ChevronRight, Database, Palette, TriangleAlert, X } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import authShoe from "../../../assets/auth-shoe.png";
 import Button from "../../../components/ui/Button";
-import { stockPreview, summarizeStock } from "../data/stockPreview";
+import useProductStocks from "../hooks/useProductStocks";
 import { StockImage, StockStat, StockTable, StatusBadge } from "./StockDetails";
 import "./ProductDetail.css";
 
 const emptyVariants = [];
 
-export default function ProductDetail({ product, onClose }) {
+export default function ProductDetail({ product: listProduct, onClose }) {
   const dialogRef = useRef(null);
   const closeRef = useRef(null);
   const timerRef = useRef(null);
   const titleId = useId();
   const descriptionId = useId();
   const [closing, setClosing] = useState(false);
-  // Preview fixtures stay separate from the product list until API integration.
-  const variants = product?.variants === 0 ? emptyVariants : stockPreview;
-  const [selectedId, setSelectedId] = useState(() => (variants.find((item) => item.is_default) || variants[0])?.id);
-  const selected = variants.find((item) => item.id === selectedId) || variants[0];
-  const totals = useMemo(() => summarizeStock(variants.flatMap((item) => item.stocks)), [variants]);
-  const current = useMemo(() => summarizeStock(selected?.stocks || []), [selected]);
+  const stockQuery = useProductStocks(listProduct?.id);
+  const product = stockQuery.data;
+  const variants = product?.variants || emptyVariants;
+  const [selectedId, setSelectedId] = useState(null);
+  // Select the default variant after data arrives; retain the user's selection.
+  const selected = variants.find(item => item.id === selectedId) || variants.find(item => item.is_default) || variants[0];
+  const totals = product?.summary || {};
+  const current = selected?.summary || {};
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -59,7 +60,7 @@ export default function ProductDetail({ product, onClose }) {
     }
   }
 
-  const image = product?.images?.[0]?.url || (typeof product?.images?.[0] === "string" ? product.images[0] : authShoe);
+  const image = product?.image;
 
   return createPortal(
     <dialog
@@ -84,6 +85,14 @@ export default function ProductDetail({ product, onClose }) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 sm:px-6">
+          {stockQuery.isPending || stockQuery.isFetching ? (
+            <p role="status" className="py-12 text-center text-sm text-[#64748B]">Loading product stock...</p>
+          ) : stockQuery.isError ? (
+            <div role="alert" className="space-y-3 py-12 text-center text-sm text-red-600">
+              <p>{stockQuery.error.response?.data?.message || stockQuery.error.message}</p>
+              <button type="button" onClick={() => stockQuery.refetch()} className="cursor-pointer underline">Retry</button>
+            </div>
+          ) : <>
           <section aria-label="Product stock overview" className="grid items-center gap-5 py-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,2fr)]">
             <div className="flex min-w-0 items-center gap-4">
               <StockImage src={image} alt={product?.name || "Product"} className="h-24 w-24 sm:h-28 sm:w-28" />
@@ -96,7 +105,7 @@ export default function ProductDetail({ product, onClose }) {
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
               <StockStat icon={Boxes} label="Total Stock" value={totals.total} unit="pairs" tone="green" />
-              <StockStat icon={Palette} label="Total Variants" value={variants.length} unit="colors" tone="blue" />
+              <StockStat icon={Palette} label="Total Variants" value={product.total_variants} unit="colors" tone="blue" />
               <StockStat icon={Box} label="Total Sizes" value={totals.sizes} unit="sizes" tone="orange" />
               <StockStat icon={TriangleAlert} label="Low Stock" value={totals.low} unit="sizes" tone="orange" />
               <StockStat icon={Ban} label="Out of Stock" value={totals.out} unit="sizes" tone="red" />
@@ -108,11 +117,11 @@ export default function ProductDetail({ product, onClose }) {
               <h3 className="mb-3 text-base font-semibold">Variants ({variants.length})</h3>
               <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
                 {variants.map((item) => {
-                  const summary = summarizeStock(item.stocks);
+                  const summary = item.summary;
                   const active = selected?.id === item.id;
                   return (
                     <button key={item.id} type="button" aria-pressed={active} onClick={() => setSelectedId(item.id)} className={"flex w-56 shrink-0 cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] lg:w-full " + (active ? "border-[#F9B985] bg-[#FFF5EB]" : "border-[#EAEFF5] bg-white hover:border-[#CBD5E1]")}>
-                      <StockImage src={item.id === "black" ? image : undefined} alt={item.color + " variant"} className="h-16 w-16" />
+                      <StockImage key={item.image} src={item.image} alt={item.color + " variant"} className="h-16 w-16" />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-2 text-sm font-semibold"><span className="h-3 w-3 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: item.colorCode }} />{item.color}</p>
                         <p className="mt-1 text-xs leading-5 text-[#64748B]"><span className="font-medium">{summary.total}</span> pairs / {summary.sizes} sizes</p>
@@ -128,7 +137,7 @@ export default function ProductDetail({ product, onClose }) {
             <section aria-label="Selected variant stock" className="min-w-0 p-4 sm:p-5">
               {selected ? <>
                 <div className="flex items-center gap-4">
-                  <StockImage key={selected.id} src={selected.id === "black" ? image : undefined} alt={selected.color + " variant"} className="h-20 w-24" />
+                  <StockImage key={selected.id + ":" + selected.image} src={selected.image} alt={selected.color + " variant"} className="h-20 w-24" />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-semibold">{selected.color}</h3>
                     <p className="mt-2 flex items-center gap-2 text-sm text-[#64748B]"><span className="h-5 w-5 rounded-full border border-[#D7DFEA]" style={{ backgroundColor: selected.colorCode }} />{selected.colorCode}</p>
@@ -146,6 +155,7 @@ export default function ProductDetail({ product, onClose }) {
               </> : <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center text-[#64748B]"><Boxes size={32} /><p>No stock information available.</p></div>}
             </section>
           </div>
+          </>}
         </div>
         <footer className="flex shrink-0 justify-end border-t border-[#EEF2F7] bg-white px-4 py-3 sm:px-6">
           <Button type="button" variant="secondary" onClick={requestClose} className="gap-2"><X size={16} />Close</Button>

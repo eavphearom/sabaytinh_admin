@@ -20,6 +20,7 @@ export default function useBanners() {
   // create
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -43,6 +44,12 @@ export default function useBanners() {
         const response = await bannerService.getAll(params, controller.signal);
 
         if (controller.signal.aborted) return;
+
+        const lastPage = Math.max(1, response.pagination?.total_page ?? 1);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
 
         // Convert the backend boolean into a UI status.
         const items = (response.data ?? []).map((banner) => ({
@@ -109,6 +116,41 @@ export default function useBanners() {
     }
   };
 
+  // update
+  const update = async (id, values) => {
+    const formData = new FormData();
+    formData.append("title", values.title);
+    formData.append("subtitle", values.subtitle ?? "");
+    formData.append("is_active", String(values.is_active));
+
+    // Send an image only if the user selected a new file.
+    if (values.image instanceof File) {
+      formData.append("image", values.image);
+    }
+
+    const response = await bannerService.update(id, formData);
+
+    // Refresh the banner list after a successful update.
+    setRefreshKey((prev) => prev + 1);
+
+    return response;
+  };
+
+  const deleteBanner = async (id) => {
+    setDeleting(true);
+    try {
+      const response = await bannerService.deleteBanner(id);
+      setBanners((current) => current.filter((banner) => banner.id !== id));
+      if (banners.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1));
+      }
+      setRefreshKey((current) => current + 1);
+      return response;
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return {
     banners,
     defaultOptions,
@@ -129,5 +171,9 @@ export default function useBanners() {
     // create
     create,
     creating,
+    //update
+    update,
+    deleteBanner,
+    deleting,
   };
 }

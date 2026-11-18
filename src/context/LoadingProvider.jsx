@@ -53,7 +53,11 @@ export function LoadingProvider({ children }) {
   useEffect(() => {
     const requestId = apiClient.interceptors.request.use(
       (config) => {
-        if (!config.skipGlobalLoading) {
+        // CRUD uses button-level loading. Only explicitly requested overlays show.
+        if (
+          !config.skipGlobalLoading &&
+          config.showGlobalLoading === true
+        ) {
           config._globalLoadingStarted = true;
           showLoading();
         }
